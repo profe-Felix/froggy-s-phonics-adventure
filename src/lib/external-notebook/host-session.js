@@ -14,6 +14,7 @@ export function createNotebookHostSession({
   let runtime = null, transport = null, persistence = null, controller = null;
   let opening = null, closing = null, closed = false, started = false;
   let renewal = null, updating = null, sealing = false, applyingContext = false;
+  let recovering = null, recoveryKey = null;
   let generation = 0, contextEpoch = 0;
   const copy = value => JSON.parse(JSON.stringify(value));
   const scope = value => JSON.stringify([
@@ -155,6 +156,142 @@ export function createNotebookHostSession({
     return updating;
   }
 
+  function recover(next = context) {
+    if (closed || closing || !started || !runtime || !renewal) {
+      return Promise.reject(
+        new Error("This notebook host is not ready for recovery.")
+      );
+    }
+
+    const staged = { ...copy(next), blocked: true };
+
+    if (
+      staged.role !== "student" ||
+      staged.kind !== "assessment" ||
+      scope(staged) !== binding
+    ) {
+      return Promise.reject(
+        new Error("Recovery must keep the same student assessment identity.")
+      );
+    }
+
+    const key = JSON.stringify(staged);
+
+    if (recovering) {
+      if (key !== recoveryKey) {
+        return Promise.reject(
+          new Error("Another notebook recovery is still finishing.")
+        );
+      }
+      return recovering;
+    }
+
+    if (updating) {
+      return Promise.reject(
+        new Error("A notebook context update is still finishing.")
+      );
+    }
+
+    const target = runtime;
+    const owner = generation;
+
+    if (
+      typeof target.prepareRecovery !== "function" ||
+      typeof target.renewSession !== "function" ||
+      typeof transport?.prepareSession !== "function"
+    ) {
+      return Promise.reject(
+        new Error(
+          "The mounted notebook needs its recovery update. Existing work remains open."
+        )
+      );
+    }
+
+    const current = () =>
+      !closed &&
+      !sealing &&
+      generation === owner &&
+      runtime === target;
+
+    recoveryKey = key;
+
+    recovering = Promise.resolve().then(async () => {
+      applyingContext = true;
+      contextEpoch++;
+
+      // Invalidate any old renewal before preparing. Its cancellation must not
+      // become an unhandled rejection while local gesture work is finishing.
+      const previous = renewal.getState().renewing
+        ? renewal.renew().then(() => true, () => false)
+        : null;
+
+      try {
+        const prepare = async () => {
+          if (
+            !current() ||
+            await target.prepareRecovery(staged, {
+              isCurrent: current,
+            }) !== true ||
+            !current()
+          ) {
+            throw new Error(
+              "The notebook could not freeze safely. Existing work remains open."
+            );
+          }
+        };
+
+        try {
+          await prepare();
+        } catch (reason) {
+          if (!previous) throw reason;
+
+          // An existing install may own the controller's input lock. Let that
+          // invalidated install settle, then make ONE local preparation retry.
+          await previous;
+          await prepare();
+        }
+
+        if (previous) await previous;
+
+        if (!current()) {
+          throw new Error(
+            "Notebook recovery lost its owner. Existing work remains open."
+          );
+        }
+
+        // Only successfully frozen context becomes future bootstrap context.
+        renewal.updateContext(staged);
+        context = staged;
+        applyingContext = false;
+
+        if (await renewal.renew() !== true || !current()) {
+          throw new Error(
+            "The recovery connection could not renew. Existing work remains open."
+          );
+        }
+
+        if (await target.flush() !== true || !current()) {
+          throw new Error(
+            "Recovery is not yet confirmed saved. Keep this notebook open."
+          );
+        }
+
+        // Stay locally blocked. A separate accepted context update is required
+        // before future normal renewal may request writing again.
+        return true;
+      } finally {
+        applyingContext = false;
+      }
+    }).finally(() => {
+      recovering = null;
+      recoveryKey = null;
+      updating = null;
+    });
+
+    updating = recovering;
+    return recovering;
+  }
+
   function renew() {
     if (closed || closing || !started || !renewal) {
       return Promise.reject(new Error("This notebook host is not ready to renew."));
@@ -193,7 +330,7 @@ export function createNotebookHostSession({
   }
 
   return {
-    start, flush, updateContext, renew, close,
+    start, flush, updateContext, recover, renew, close,
     getRenewalState: () => renewal?.getState() ?? null,
   };
 }
