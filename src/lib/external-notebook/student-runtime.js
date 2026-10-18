@@ -129,7 +129,8 @@ export async function mountNotebookStudent({
   function beforeUnload(event) {
     finishInBackground();
     const state = controller?.getState().syncState;
-    if (state?.renewing === true || state?.save.pendingCount > 0 || state?.failedLocalCount > 0 || localError ||
+    if (state?.renewing === true || state?.connection.suspended === true ||
+        state?.save.pendingCount > 0 || state?.failedLocalCount > 0 || localError ||
         (renderError && everEditable)) {
       event.preventDefault();
       event.returnValue = "";
@@ -166,6 +167,53 @@ export async function mountNotebookStudent({
       const saved = await controller.flush();
       if (saved === true) localError = "";
       return saved === true;
+    },
+    async prepareRecovery(next, { isCurrent = () => true } = {}) {
+      if (disposed || closeTask) {
+        throw new Error("This student notebook is closed or closing.");
+      }
+
+      if (renderError) {
+        throw new Error(
+          "The notebook screen encountered an error. Existing work remains protected."
+        );
+      }
+
+      if (typeof isCurrent !== "function") {
+        throw new Error("A notebook recovery guard is required.");
+      }
+
+      if (typeof controller.prepareRecovery !== "function") {
+        throw new Error(
+          "The notebook controller needs its recovery update. Existing work remains open."
+        );
+      }
+
+      const current = () =>
+        !disposed &&
+        !closeTask &&
+        !renderError &&
+        isCurrent() === true;
+
+      if (!current()) return false;
+
+      const prepared = await controller.prepareRecovery(next, {
+        isCurrent: current,
+      });
+
+      if (!current()) return false;
+
+      if (prepared !== true) {
+        throw new Error(
+          "The notebook could not safely prepare recovery. Existing work remains open."
+        );
+      }
+
+      // Preparation is not a save acknowledgement. Retain localError and
+      // openingError until verified renewal/save, and keep this root mounted.
+      latest = controller.getState();
+      requestRender();
+      return true;
     },
     async renewSession(next, { isCurrent = () => true } = {}) {
       if (disposed || closeTask) throw new Error("This student notebook is closed or closing.");
