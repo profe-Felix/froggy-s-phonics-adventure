@@ -8,5 +8,5 @@ export const EXTERNAL_NOTEBOOK_CONFIG = Object.freeze({
   className: "Felix",
   schoolYear: "26-27",
   assignmentId: "69d650c08c922889cd55c561",
-  notebookOrigin: "", // Fill only after verifying the actual published backend.
+  notebookOrigin: "https://live-classroom-annotation-notebook.replit.app",
 });

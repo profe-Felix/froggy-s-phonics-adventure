@@ -278,7 +278,7 @@ export async function createNotebookStudentController({
 
         if (
           candidate?.role !== "student" ||
-          candidate.kind !== "assessment" ||
+          !["assessment", "lesson"].includes(candidate.kind) ||
           scope(candidate) !== scope(context)
         ) {
           throw new Error(

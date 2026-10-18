@@ -16,6 +16,8 @@ import { getHomeroomForClass, ROTATION_TEACHERS } from '@/lib/classRotation';
 import { cn } from '@/lib/utils';
 import { COLOR_GROUPS } from '@/lib/smallGroupColors';
 import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
+import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
+import { lessonStepPages, liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
 
 // Teacher lesson context for external notebook control sync.
 // Built from the saved live session; only called for notebook steps.
@@ -37,6 +39,8 @@ function teacherLessonContext(session, step) {
     phase,
     releaseMode,
     paused: releaseMode !== "lesson" && phase !== "try",
+    // Same page semantics as the student lesson step (config.pageSelection).
+    ...lessonStepPages(step?.config),
   };
 }
 
@@ -60,7 +64,7 @@ const LIVE_DAY_OPTIONS = [
 
 const BLOCKS = ['A', 'B', 'C'];
 
-function getLiveLessonSteps(lesson, selectedDay = '') {
+export function getLiveLessonSteps(lesson, selectedDay = '') {
   if (!lesson) {
     return [];
   }
@@ -97,6 +101,21 @@ function getLiveLessonSteps(lesson, selectedDay = '') {
   }
 
   return lesson.steps || [];
+}
+
+function NotebookLinkButton({ url }) {
+  const [state, setState] = useState('');
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setState('Copied'); }
+    catch { setState('Copy failed'); }
+    setTimeout(() => setState(''), 2000);
+  };
+  return (
+    <button type="button" onClick={copy} title={url}
+      className="absolute left-3 top-3 z-20 rounded-lg border border-slate-600 bg-slate-800/90 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-700">
+      {state || 'Copy notebook link'}
+    </button>
+  );
 }
 
 function genCode() {
@@ -1052,6 +1071,20 @@ export default function LiveLesson() {
   const isLocked =
     phase === 'watch';
 
+  const legacyTeacherPanel = showDashboard ? (
+    <TryDashboard
+      session={session}
+    />
+  ) : (
+    <TeacherModelPanel
+      step={currentStep}
+      stepIndex={session.current_step || 0}
+      send={send}
+      className={session.class_name}
+      lesson={selectedLesson}
+    />
+  );
+
   const releaseMode =
     session.release_mode || 'stay';
 
@@ -1226,19 +1259,21 @@ export default function LiveLesson() {
               : 'STUDENTS: RELEASED'}
         </div>
 
-        {showDashboard ? (
-          <TryDashboard
-            session={session}
-          />
-        ) : (
-          <TeacherModelPanel
-            step={currentStep}
-            stepIndex={session.current_step || 0}
-            send={send}
-            className={session.class_name}
-            lesson={selectedLesson}
-          />
-        )}
+        {currentStep?.mode === 'digital_notebook' ? (
+          <>
+            <NotebookLinkButton
+              url={liveNotebookLink(window.location.origin, {
+                lessonSessionId: session.id,
+                stepIndex: session.current_step || 0,
+                className: session.class_name,
+              })}
+            />
+            {/* Native monitor when enabled; otherwise the existing legacy panel unchanged. */}
+            <ExternalNotebookSlot context={teacherLessonContext(session, currentStep)}>
+              {legacyTeacherPanel}
+            </ExternalNotebookSlot>
+          </>
+        ) : legacyTeacherPanel}
 
       </div>
 

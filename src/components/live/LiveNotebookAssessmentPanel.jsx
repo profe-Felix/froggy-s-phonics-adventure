@@ -11,6 +11,7 @@ import NotebookAssessmentRoster from '@/components/live/NotebookAssessmentRoster
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 import ExternalNotebookTeacherStatus from '@/components/external-notebook/ExternalNotebookTeacherStatus';
 import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
+import { liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
 
 // Teacher assessment context for external notebook control sync.
 // Built from the actual saved session; never from browser-chosen values.
@@ -21,7 +22,23 @@ function teacherAssessmentContext(s) {
     sourceId: s.id, active: s.active !== false,
     assignmentId: s.assignment_id,
     className: s.class_name, schoolYear: s.school_year,
+    page: s.current_page,
   };
+}
+
+function CopyNotebookLink({ url }) {
+  const [copied, setCopied] = useState('');
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setCopied('Copied'); }
+    catch { setCopied('Copy failed'); }
+    setTimeout(() => setCopied(''), 2000);
+  };
+  return (
+    <button type="button" onClick={copy} title={url}
+      className="self-start rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-700">
+      {copied || 'Copy notebook link'}
+    </button>
+  );
 }
 
 // Live notebook assessment control panel.
@@ -684,6 +701,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
             Students are free to navigate at their own pace.
           </div>
         )}
+
+        <CopyNotebookLink url={liveNotebookLink(window.location.origin, { assessmentId: session.id, className: session.class_name })} />
 
         {/* External work overview — hidden until the integration is ready. */}
         <ExternalNotebookSlot context={teacherAssessmentContext(session)} />

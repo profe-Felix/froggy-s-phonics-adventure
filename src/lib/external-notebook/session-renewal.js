@@ -66,7 +66,7 @@ export function createNotebookSessionRenewal({
   }
   function validate(candidate) {
     createNotebookStudentControls({ session: candidate, context: latestContext });
-    for (const name of ["backendOrigin", "role", "classId", "workbookId", "studentNumber", "kind", "sourceId"]) {
+    for (const name of ["backendOrigin", "role", "classId", "workbookId", "studentNumber", "kind", "sourceId", "stepId"]) {
       if (candidate[name] !== current[name]) {
         throw new Error("Renewal cannot change the notebook identity or destination.");
       }

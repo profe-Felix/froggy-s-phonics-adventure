@@ -17,7 +17,7 @@ export async function bootstrapExternalNotebook(context) {
   // This is only a fixed-scope/readiness check, NOT restored eligibility.
   // The server must find prior write authority before issuing save-only access.
   const recoveryOnly = !active && captured?.role === "student" &&
-    captured.kind === "assessment" && isExternalNotebookActive({
+    ["assessment", "lesson"].includes(captured.kind) && isExternalNotebookActive({
       ...captured,
       active: true,
       blocked: false,
@@ -57,6 +57,7 @@ export async function bootstrapExternalNotebook(context) {
     data.role !== captured.role ||
     data.kind !== captured.kind ||
     data.sourceId !== captured.sourceId ||
+    (captured.kind === "lesson" && data.stepId !== captured.stepId) ||
     data.backendOrigin !== EXTERNAL_NOTEBOOK_CONFIG.notebookOrigin ||
     !id(data.classId) ||
     !id(data.workbookId) ||

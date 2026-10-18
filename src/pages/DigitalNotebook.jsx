@@ -21,7 +21,7 @@ const CLASS_MAP = {
   'campos': 'Campos', 'c': 'Campos',
 };
 
-function parseClassParam(raw, classList) {
+export function parseClassParam(raw, classList) {
   if (!raw) return null;
   const lower = raw.toLowerCase();
   // Check alias map first
@@ -33,7 +33,7 @@ function parseClassParam(raw, classList) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
+export function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
   const { colorFor, groupedClasses, loading, error: classError, retry: retryClasses, configs } = useClassColors();
   const [className, setClassName] = useState(preselectedClass || null);
   const groups = groupedClasses();

@@ -167,7 +167,7 @@ export function createNotebookHostSession({
 
     if (
       staged.role !== "student" ||
-      staged.kind !== "assessment" ||
+      !["assessment", "lesson"].includes(staged.kind) ||
       scope(staged) !== binding
     ) {
       return Promise.reject(

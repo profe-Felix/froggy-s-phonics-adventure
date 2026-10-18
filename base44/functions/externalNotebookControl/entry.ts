@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
 import { resolveNotebookAssessmentControls } from "../../shared/externalNotebookControlPolicy.mjs";
+import { savedLessonNotebookControls } from "../../shared/externalNotebookLessonPolicy.mjs";
 
 // Base44 executes this on Deno. This declaration is for non-Deno editors only.
 declare const Deno: { env: { get(name: string): string | undefined } };
@@ -20,7 +21,7 @@ export default async function(req: Request) {
   try { body = await req.json(); } catch { return reply("Invalid request.", 400); }
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       Object.keys(body).some(key => !["kind", "sourceId", "requestId"].includes(key)) ||
-      body.kind !== "assessment" || !id(body.sourceId) ||
+      !["assessment", "lesson"].includes(body.kind) || !id(body.sourceId) ||
       typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)) {
     return reply("A valid assessment control request is required.", 400);
   }
@@ -43,12 +44,19 @@ export default async function(req: Request) {
   }
   try {
     const svc = client.asServiceRole;
-    const [assessment, assignment] = await Promise.all([
-      svc.entities.LiveNotebookAssessment.get(body.sourceId),
+    const [source, assignment] = await Promise.all([
+      body.kind === "lesson" ? svc.entities.LiveLessonSession.get(body.sourceId) : svc.entities.LiveNotebookAssessment.get(body.sourceId),
       svc.entities.DigitalNotebookAssignment.get(config.assignmentId),
     ]);
-    if (assessment?.id !== body.sourceId) return reply("The assessment could not be verified.", 403);
-    const controls = resolveNotebookAssessmentControls({ config, assessment, assignment });
+    if (source?.id !== body.sourceId) return reply("The activity could not be verified.", 403);
+    let controls;
+    if (body.kind === "lesson") {
+      if (!["lesson", "small_group"].includes(source.lesson_source || "lesson")) return reply("The lesson type could not be verified.", 403);
+      const entity = source.lesson_source === "small_group" ? svc.entities.SmallGroupLesson : svc.entities.Lesson;
+      const lesson = await entity.get(source.lesson_id);
+      if (lesson?.id !== source.lesson_id) return reply("The saved lesson could not be verified.", 403);
+      controls = savedLessonNotebookControls({ config, lessonSession: source, lesson, assignment });
+    } else controls = resolveNotebookAssessmentControls({ config, assessment: source, assignment });
     const response = await fetch(`${NOTEBOOK_ORIGIN}/api/notebook/base44/native-controls`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },

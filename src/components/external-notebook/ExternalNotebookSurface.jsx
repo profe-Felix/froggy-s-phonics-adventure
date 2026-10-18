@@ -32,7 +32,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   }
 
   function needsRecovery(value) {
-    if (value?.role !== "student" || value.kind !== "assessment") return false;
+    if (value?.role !== "student" || !["assessment", "lesson"].includes(value.kind)) return false;
     const targets = value.targetStudents ?? [], finished = value.finishedStudents ?? [];
     const sameSeat = entry => entry?.class_name === value.student?.className &&
       Number(entry.student_number) === value.student?.number;
@@ -44,7 +44,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   function recoverContext(entry, next) {
     const current = () => entry?.live && owner.current === entry &&
       !entry.released && next === latestContext.current;
-    if (!current() || next?.role !== "student" || next.kind !== "assessment") {
+    if (!current() || next?.role !== "student" || !["assessment", "lesson"].includes(next.kind)) {
       return Promise.resolve(false);
     }
     if (entry.recoverySaved === next && entry.recoveryHeld) return Promise.resolve(true);
@@ -242,7 +242,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
         if (
           !saved &&
           requested?.role === "student" &&
-          requested.kind === "assessment"
+          ["assessment", "lesson"].includes(requested.kind)
         ) {
           saved = await recoverContext(entry, requested) === true;
         }

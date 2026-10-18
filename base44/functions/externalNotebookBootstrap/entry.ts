@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
 import { resolveNotebookAssessmentAccess } from "../../shared/externalNotebookNativePolicy.mjs";
+import { bootstrapNotebookExtension } from "../../shared/externalNotebookLessonPolicy.mjs";
 
 // The server supplies Deno; this declaration is only for the code editor.
 declare const Deno: {
@@ -65,18 +66,16 @@ export default async function(req: Request) {
     Array.isArray(body) ||
     typeof body !== "object" ||
     Object.keys(body).some(
-      key => !["kind", "sourceId", "studentId", "recoveryOnly"].includes(key)
+      key => !["kind", "sourceId", "studentId", "stepId", "recoveryOnly"].includes(key)
     ) ||
     !["assessment", "lesson"].includes(body.kind) ||
     !id(body.sourceId) ||
     (body.studentId !== undefined && !id(body.studentId)) ||
+    (body.kind === "lesson" && (!id(body.stepId) || !/^(0|[1-9]\d{0,3})$/.test(body.stepId))) ||
+    (body.kind === "assessment" && body.stepId !== undefined) ||
     (body.recoveryOnly !== undefined && typeof body.recoveryOnly !== "boolean")
   ) {
     return reply("Only notebook activity and student identifiers are accepted.", 400);
-  }
-
-  if (body.kind !== "assessment" || !body.studentId) {
-    return reply("Teacher and lesson notebook connections are not ready yet.", 501);
   }
 
   const credential = Deno.env.get("NOTEBOOK_BRIDGE_KEY");
@@ -93,13 +92,21 @@ export default async function(req: Request) {
     !config ||
     ["appId", "className", "schoolYear", "assignmentId"].some(
       key => !id(config[key])
-    )
+    ) ||
+    (config.teacherUserIds !== undefined && (!Array.isArray(config.teacherUserIds) ||
+      config.teacherUserIds.length > 100 || config.teacherUserIds.some((value: unknown) => !id(value))))
   ) {
     return reply("The notebook mapping is not configured.", 503);
   }
 
   try {
-    const svc = createClientFromRequest(req).asServiceRole;
+    const client = createClientFromRequest(req);
+    if (body.kind === "lesson" || !body.studentId) {
+      return await bootstrapNotebookExtension({
+        client, body, config, credential, notebookOrigin: NOTEBOOK_ORIGIN, headers, sharedRead,
+      });
+    }
+    const svc = client.asServiceRole;
     const key = JSON.stringify([
       config.appId,
       config.className,

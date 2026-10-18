@@ -12,7 +12,8 @@ const sdk = "data:text/javascript," + encodeURIComponent(
 );
 const source = stripTypeScriptTypes(await readFile(entry, "utf8"))
   .replace('"npm:@base44/sdk@0.8.54"', JSON.stringify(sdk))
-  .replace('"../../shared/externalNotebookControlPolicy.mjs"', JSON.stringify(policy.href));
+  .replace('"../../shared/externalNotebookControlPolicy.mjs"', JSON.stringify(policy.href))
+  .replace('"../../shared/externalNotebookLessonPolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookLessonPolicy.mjs", import.meta.url).href));
 const { default: handler } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
 function fixture(t) {
   const previous = { Deno: globalThis.Deno, fetch: globalThis.fetch, sdk: globalThis.__notebookControlSDK };

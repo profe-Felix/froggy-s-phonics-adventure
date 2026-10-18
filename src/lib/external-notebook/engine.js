@@ -8,8 +8,8 @@ const owners = new WeakMap();
 
 export async function mountNotebook(options = {}) {
   const { element, role, context, session } = options || {};
-  if (role !== "student") {
-    throw new Error("NOTEBOOK_TEACHER_NOT_READY: keep teacher mode disabled.");
+  if (!["student", "teacher"].includes(role)) {
+    throw new Error("A valid student or teacher notebook role is required.");
   }
   if (context?.role !== role || session?.role !== role) {
     throw new Error("The notebook context and signed session must both belong to this student role.");
@@ -24,8 +24,13 @@ export async function mountNotebook(options = {}) {
   owners.set(element, owner);
   let runtime;
   try {
-    const { mountNotebookStudent } = await import("./student-runtime");
-    runtime = await mountNotebookStudent(options);
+    if (role === "teacher") {
+      const { mountNotebookTeacher } = await import("./teacher-runtime");
+      runtime = await mountNotebookTeacher(options);
+    } else {
+      const { mountNotebookStudent } = await import("./student-runtime");
+      runtime = await mountNotebookStudent(options);
+    }
     if (!runtime || ["flush", "updateContext", "close"].some(name => typeof runtime[name] !== "function")) {
       throw new Error("The student notebook did not provide its required save and lifecycle methods.");
     }
@@ -42,7 +47,7 @@ export async function mountNotebook(options = {}) {
     },
     async prepareRecovery(next, { isCurrent = () => true } = {}) {
       if (closed || closing) throw new Error("This notebook engine is closed or closing.");
-      if (role !== "student" || next?.role !== role || next.kind !== "assessment") {
+      if (role !== "student" || next?.role !== role || !["assessment", "lesson"].includes(next.kind)) {
         throw new Error("Recovery must keep the student assessment role.");
       }
       if (typeof isCurrent !== "function") throw new Error("A notebook recovery guard is required.");

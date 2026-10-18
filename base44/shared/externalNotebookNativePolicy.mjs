@@ -118,7 +118,9 @@ export function resolveNotebookAssessmentAccess({
       studentId: student.id,
       studentNumber: student.student_number,
       origin: "https://edu-aventura.base44.app",
-      canWrite: eligible && assessment.paused !== true,
+      // Eligibility survives pause/resume; the notebook server separately
+      // enforces current classroom status on every operation.
+      canWrite: eligible,
       allowedPages,
     },
   };
