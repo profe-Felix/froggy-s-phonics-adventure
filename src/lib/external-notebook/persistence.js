@@ -1,5 +1,5 @@
-// Keep disabled until the engine, transport, and storage tests pass together.
-export const NOTEBOOK_PERSISTENCE_READY = false;
+// Verified together with the engine, transport, offline queue and recovery.
+export const NOTEBOOK_PERSISTENCE_READY = true;
 
 export async function openNotebookPersistence({ workKey } = {}) {
   if (typeof workKey !== 'string' || !workKey.trim()) {

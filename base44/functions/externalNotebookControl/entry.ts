@@ -60,7 +60,7 @@ export default async function(req: Request) {
     const response = await fetch(`${NOTEBOOK_ORIGIN}/api/notebook/base44/native-controls`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },
-      body: JSON.stringify(controls), signal: AbortSignal.timeout(12000), redirect: "error",
+      body: JSON.stringify(controls), signal: AbortSignal.timeout(12000), redirect: "manual",
     });
     if (!response.ok) return reply("Notebook controls were not confirmed. Keep this screen open and retry.", response.status === 409 ? 409 : 503);
     const data = await response.json();

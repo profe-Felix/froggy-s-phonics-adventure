@@ -100,11 +100,13 @@ export default async function(req: Request) {
     return reply("The notebook mapping is not configured.", 503);
   }
 
+  let bootstrapStage = "sdk-client";
   try {
     const client = createClientFromRequest(req);
     if (body.kind === "lesson" || !body.studentId) {
       return await bootstrapNotebookExtension({
         client, body, config, credential, notebookOrigin: NOTEBOOK_ORIGIN, headers, sharedRead,
+        onStage: (stage: string) => { bootstrapStage = stage; },
       });
     }
     const svc = client.asServiceRole;
@@ -250,7 +252,7 @@ export default async function(req: Request) {
           canWrite: !recoveryOnly && decision.request.canWrite,
         }),
         signal: AbortSignal.timeout(12000),
-        redirect: "error",
+        redirect: "manual",
       }
     );
 
@@ -325,11 +327,25 @@ export default async function(req: Request) {
       classroom: session.classroom,
       workbook: session.workbook,
     }, { headers });
-  } catch {
+  } catch (error: any) {
     // Never echo SDK/upstream errors, credentials, tokens, or roster records.
-    return reply(
-      "The notebook connection is unavailable or its records changed. Pending work was retained; keep this page open and retry.",
-      503
-    );
+    const status = error?.status ?? error?.response?.status;
+    const message = typeof error?.message === "string" ? error.message : "";
+    const reason = /AbortSignal.*timeout|timeout.*not a function/i.test(message) ? "timeout-api" :
+      /redirect/i.test(message) ? "redirect" :
+      /timed? ?out|abort/i.test(message) ? "timeout" :
+      /dns|resolve|ENOTFOUND/i.test(message) ? "dns" :
+      /fetch|network|socket|connect/i.test(message) ? "network" :
+      /header|ByteString/i.test(message) ? "request-header" : "unclassified";
+    console.warn("Native notebook bootstrap failed.", {
+      stage: bootstrapStage,
+      reason,
+      upstreamStatus: Number.isInteger(status) ? status : null,
+    });
+    return Response.json({
+      error: "The notebook connection is unavailable or its records changed. Pending work was retained; keep this page open and retry.",
+      code: `notebook_${bootstrapStage}`,
+      reason,
+    }, { status: 503, headers });
   }
 }

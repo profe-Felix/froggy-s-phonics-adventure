@@ -1,5 +1,5 @@
 // Keep disabled until native backend authorization and CORS are installed.
-export const NOTEBOOK_TRANSPORT_READY = false;
+export const NOTEBOOK_TRANSPORT_READY = true;
 
 export async function createNotebookTransport({ session, signal } = {}) {
   if (!session || typeof session.accessToken !== 'string' || !session.accessToken ||

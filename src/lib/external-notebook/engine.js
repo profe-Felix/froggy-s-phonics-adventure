@@ -1,6 +1,6 @@
-// Keep false until teacher mode, session renewal and host save guards are ready.
+// Verified teacher lifecycle, renewal, transport and pending-work save guards.
 // ExternalNotebookSlot owns this readiness check and the rollout switches.
-export const NOTEBOOK_ENGINE_READY = false;
+export const NOTEBOOK_ENGINE_READY = true;
 
 // Reserve a container before asynchronous startup, not after it completes.
 // A failed save/close must not permit another engine to overwrite its screen.

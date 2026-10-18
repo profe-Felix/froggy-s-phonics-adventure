@@ -84,7 +84,7 @@ test("fresh trusted records determine the exact fixed-origin request and matchin
   assert.equal(result.status, 200);
   assert.equal(h.requests.length, 1);
   assert.equal(h.requests[0].url, "https://live-classroom-annotation-notebook.replit.app/api/notebook/base44/native-controls");
-  assert.equal(h.requests[0].init.redirect, "error");
+  assert.equal(h.requests[0].init.redirect, "manual");
   assert.deepEqual(h.requests[0].body, resolveNotebookAssessmentControls(h));
   assert.equal(h.requests[0].body.status, "paused");
   assert.deepEqual(await result.json(), h.upstream);
@@ -95,6 +95,10 @@ test("changed records, stale upstream state and malformed acknowledgments never 
   h.assessment.id = "other"; assert.equal((await h.call()).status, 403);
   h.assessment.id = "assessment"; h.upstreamStatus = 409;
   assert.equal((await h.call()).status, 409);
+  // A redirect never succeeds and must not forward the bridge credential.
+  h.upstreamStatus = 302;
+  assert.equal((await h.call()).status, 503);
+  assert.equal(h.requests.at(-1).init.redirect, "manual");
   h.upstreamStatus = 200;
   for (const patch of [{ applied: false }, { sourceId: "other" }, { controlRevision: 0 }, { controlRevision: 1.5 }]) {
     const old = h.upstream; h.upstream = { ...old, ...patch };

@@ -1,4 +1,30 @@
-import { createNotebookStudentControls } from "./student-controls";
+import { createNotebookStudentControls } from "./student-controls.js";
+
+// Teacher grants deliberately have no student seat and cannot write. Keep the
+// same destination/source checks without pretending the teacher is a student.
+function validateRenewalSession(session, context) {
+  if (context?.role !== "teacher") {
+    return createNotebookStudentControls({ session, context });
+  }
+  const id = value => typeof value === "string" && value.length > 0 && value.length <= 100;
+  const pages = session?.allowedPages, count = session?.workbook?.pageCount;
+  if (!session || session.contractVersion !== 1 || session.role !== "teacher" ||
+      !["assessment", "lesson"].includes(context.kind) || session.kind !== context.kind ||
+      !id(context.sourceId) || session.sourceId !== context.sourceId ||
+      (context.kind === "lesson" && session.stepId !== context.stepId) ||
+      session.studentNumber !== undefined || session.canWrite !== false ||
+      !id(session.classId) || !id(session.workbookId) ||
+      session.classroom?.id !== session.classId ||
+      session.classroom?.workbookId !== session.workbookId ||
+      session.workbook?.id !== session.workbookId ||
+      !Number.isSafeInteger(count) || count < 1 || count > 2000 ||
+      !Number.isSafeInteger(session.expiresAtMs) || session.expiresAtMs <= 0 ||
+      (pages !== null && (!Array.isArray(pages) || !pages.length ||
+        new Set(pages).size !== pages.length ||
+        pages.some(page => !Number.isSafeInteger(page) || page < 1 || page > count)))) {
+    throw new Error("A complete read-only teacher notebook session is required.");
+  }
+}
 
 // Preparation for renewal, NOT permission to replace a Canvas or clear an outbox.
 // bootstrap must be the verified Base44 bootstrap, never a locally edited token.
@@ -21,7 +47,7 @@ export function createNotebookSessionRenewal({
     value?.student?.className, value?.student?.schoolYear,
   ]);
   let current = copy(session), latestContext = copy(context);
-  createNotebookStudentControls({ session: current, context: latestContext });
+  validateRenewalSession(current, latestContext);
   if (typeof current.backendOrigin !== "string" || !current.backendOrigin ||
       typeof current.accessToken !== "string" || !current.accessToken) {
     throw new Error("A verified notebook connection is required before renewal.");
@@ -65,7 +91,7 @@ export function createNotebookSessionRenewal({
     }, Math.min(delay, 2147483647));
   }
   function validate(candidate) {
-    createNotebookStudentControls({ session: candidate, context: latestContext });
+    validateRenewalSession(candidate, latestContext);
     for (const name of ["backendOrigin", "role", "classId", "workbookId", "studentNumber", "kind", "sourceId", "stepId"]) {
       if (candidate[name] !== current[name]) {
         throw new Error("Renewal cannot change the notebook identity or destination.");
@@ -124,7 +150,7 @@ export function createNotebookSessionRenewal({
       if (closed || scope(next) !== binding) {
         throw new Error("Changing student, assignment or lesson step requires a separate safe handoff.");
       }
-      createNotebookStudentControls({ session: current, context: next });
+      validateRenewalSession(current, next);
       latestContext = copy(next);
     },
     getState: state,

@@ -83,9 +83,11 @@ export function lessonNotebookPolicy({ config, lessonSession: s, lesson, assignm
 // Called only by the server function with its configured bridge credential.
 export async function bootstrapNotebookExtension({
   client, body, config, credential, notebookOrigin, headers, sharedRead,
+  onStage = () => {},
 }) {
   const teacher = !body.studentId;
   if (teacher) {
+    onStage("teacher-auth");
     let user;
     try { user = await client.auth.me(); } catch { return Response.json({ error: "Teacher sign-in is required." }, { status: 401, headers }); }
     if (!user?.id || (user.role !== "admin" && !config.teacherUserIds?.includes(user.id))) {
@@ -96,15 +98,19 @@ export async function bootstrapNotebookExtension({
   const svc = client.asServiceRole;
   const key = JSON.stringify([config.appId, config.className, config.schoolYear, config.assignmentId]);
   const read = (suffix, action) => sharedRead(`${key}:${suffix}`, action);
+  onStage("assignment-read");
   const assignment = await read("assignment", () => svc.entities.DigitalNotebookAssignment.get(config.assignmentId));
   let request, count, controls;
   if (body.kind === "assessment") {
+    onStage("assessment-read");
     const assessment = await read(`assessment:${body.sourceId}`, () => svc.entities.LiveNotebookAssessment.get(body.sourceId));
     if (assessment?.id !== body.sourceId) fail();
+    onStage("assessment-policy");
     controls = resolveNotebookAssessmentControls({ config, assessment, assignment });
     count = assignment.pdf_page_count;
     request = { role: "teacher", kind: "assessment", sourceId: assessment.id, allowedPages: null };
   } else {
+    onStage("lesson-read");
     const s = await read(`lesson-session:${body.sourceId}`, () => svc.entities.LiveLessonSession.get(body.sourceId));
     if (s?.id !== body.sourceId || !["lesson", "small_group"].includes(s.lesson_source || "lesson")) fail();
     const entity = s.lesson_source === "small_group" ? svc.entities.SmallGroupLesson : svc.entities.Lesson;
@@ -132,9 +138,12 @@ export async function bootstrapNotebookExtension({
   // Opening a teacher screen reconciles an already-running Base44 activity
   // once, not once per student. Record-version idempotency makes retries safe.
   if (teacher && controls.status !== "ended") {
+    onStage("controls-sync");
     const synced = await fetch(`${notebookOrigin}/api/notebook/base44/native-controls`, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },
-      body: JSON.stringify(controls), redirect: "error", signal: AbortSignal.timeout(12000),
+      // Workers supports manual/follow, not the browser's redirect:error.
+      // Manual still fails closed on every redirect and never forwards secrets.
+      body: JSON.stringify(controls), redirect: "manual", signal: AbortSignal.timeout(12000),
     });
     if (!synced.ok) fail();
     const ack = await synced.json();
@@ -142,6 +151,7 @@ export async function bootstrapNotebookExtension({
         !positive(ack.controlRevision)) fail();
   }
   const recoveryOnly = request.recoveryOnly === true;
+  onStage("native-session");
   const response = await fetch(`${notebookOrigin}/api/notebook/base44/native-session`, {
     method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },
     body: JSON.stringify({
@@ -149,10 +159,11 @@ export async function bootstrapNotebookExtension({
       assignmentId: config.assignmentId, origin: "https://edu-aventura.base44.app",
       canWrite: false, ...request, ...(recoveryOnly ? { canWrite: false } : {}),
     }),
-    redirect: "error", signal: AbortSignal.timeout(12000),
+    redirect: "manual", signal: AbortSignal.timeout(12000),
   });
   if (!response.ok) return Response.json({ error: "Notebook access was not confirmed. Saved and pending work was retained." },
     { status: [401, 403, 409, 429].includes(response.status) ? response.status : 503, headers });
+  onStage("session-contract");
   const session = await response.json(), pages = session.allowedPages;
   if (session.contractVersion !== 1 || session.role !== request.role || session.kind !== request.kind ||
       session.sourceId !== body.sourceId || (request.stepId && session.stepId !== request.stepId) ||

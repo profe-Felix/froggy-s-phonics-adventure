@@ -1,9 +1,9 @@
 # Native notebook control synchronization
 
-This branch implements native assessment, lesson-step and direct-link notebooks without enabling them.
-The dormant implementation is installed on main. It does not change student
-picture login, activate recordings or route students away from the existing writer
-while the rollout gates remain disabled.
+The native assessment, lesson-step and direct-link notebook pilot is installed
+and published in Base44. Server and client readiness gates are ON only for
+Felix / 26-27 / Aprende y Demuestra. Other classes and assignments retain their
+existing writer. Student picture login is unchanged; recording remains off.
 
 ## Implemented in this branch
 
@@ -32,8 +32,8 @@ while the rollout gates remain disabled.
 ## Companion notebook backend
 
 The separate Replit backend adds POST `/api/notebook/base44/native-controls`.
-It must be published with the additive `notebook_base44_bridges.native_controls`
-JSONB column before this function can be used.
+It is published with the additive `notebook_base44_bridges.native_controls`
+JSONB column and native permission table.
 
 Controls and source versions commit in one class-serialized transaction.
 Identical retries return the existing revision without rebroadcasting. Older
@@ -43,24 +43,28 @@ Native credentials from an older assessment cannot write new operations into a
 newer assessment, while exact receipts and authorized save-only recovery remain
 available for earlier work.
 
-## Still disabled / not verified in a live Base44 classroom
+## Verified and remaining classroom checks
 
-All client configuration and readiness switches remain OFF. The Base44
-server gate has been staged OFF through its management API; keep it OFF until the
-backend is published and the installed Base44 configuration is verified.
-Teacher bootstrap and monitoring are implemented, but installed Base44 SDK and
-native browser handoff verification remain incomplete. Do not toggle flags yet.
-No 20-iPad capacity claim is made.
+The published Base44 SDK function returned real assessment and lesson teacher
+contracts against the correct 206-page template; lesson step and page limits
+matched saved records. Checks used inactive disposable records and removed
+them afterwards, without starting a class or changing student work.
 
-The current published Replit backend returned 404 for both native-session and
-native-controls during preflight. A Replit Publish action and separate Base44
-authorization are still required; GitHub Contents permission does not provide
-Base44 secret/configuration or publishing access.
+The real native browser journey on disposable development data verified student
+save/reload, teacher thumbnails, same-grant pause/resume, offline queue and
+reconnection, retained/recovered released-seat work, enlargement and
+non-mutating replay. The default teacher host and forced token renewal/reconnect
+passed after its student-only renewal validation was corrected.
 
-The attempted browser pass could not reach the native surface; it did not verify
-canvas save/reload or mounted-slot recovery. An HTTP fixture's teacher-review
-failure was traced to using its POST-only helper for a GET route. The corrected
-GET check passed; do not misreport that fixture mistake as a production auth bug.
+Workers does not accept Node's `redirect: "error"` fetch option. Server requests
+use manual mode and reject redirects without forwarding the bridge credential.
+Server secret changes require republishing to reach the pinned public function.
+Actual app source was installed using official sandbox-bridge APIs, with restore
+points before installation and after verification.
+
+The physical 20-iPad classroom trial and 60–100-client/multi-class capacity test
+remain outstanding. Development browser evidence is not a full Base44
+production student picture-login journey or a capacity guarantee.
 
 ## Local checks
 
@@ -70,7 +74,7 @@ Node 22.13 or newer:
 npm run test:notebook-controls
 ```
 
-The 29 tests run real policies/handlers and controller/route helpers with controlled SDK and HTTP boundaries;
-they do not access production records or establish installed Base44 SDK behavior.
-The full local app import graph also bundles with esbuild (package dependencies
-external), which is not a Vite production build or browser verification.
+The 32 tests run real policies/handlers and controller/route/renewal helpers with
+controlled SDK and HTTP boundaries. The actual Base44 sandbox production build
+also passed. Separate production SDK checks and real development browser checks
+are described above; the unit suite alone does not establish those outcomes.
