@@ -58,6 +58,9 @@ export async function createNotebookStudentSync({
   let channel;
   let closed = false;
   let closing = null;
+  let renewing = null, resuming = null, resumingExpiry;
+  let renewalEpoch = 0;
+  const idleWaiters = new Set();
 
   const problem = (message, status = 409) =>
     Object.assign(
@@ -235,6 +238,63 @@ export async function createNotebookStudentSync({
     }
   }
 
+  function inRenewal() {
+    return !!renewing || !!resuming || channel.getState().suspended;
+  }
+
+  async function waitForSaveIdle() {
+    while (!closed && queue.getState().saving) {
+      await new Promise(resolve => idleWaiters.add(resolve));
+    }
+    return !closed;
+  }
+
+  function suspendForRenewal() {
+    open();
+    if (renewing) return renewing;
+    if (resuming) return Promise.resolve(false);
+    renewing = Promise.resolve().then(async () => {
+      if (closed || channel.suspendForRenewal() !== true) return false;
+      renewalEpoch++;
+      if (!await finishLocal()) return false;
+      if (!await waitForSaveIdle()) return false;
+      return !closed && !writes.size && !failedLocal.size && channel.getState().suspended;
+    }).finally(() => {
+      renewing = null;
+      emit("renewal", { active: inRenewal() });
+    });
+    emit("renewal", { active: true });
+    return renewing;
+  }
+
+  function resumeAfterRenewal({ expiresAtMs: nextExpiry } = {}) {
+    open();
+    if (resuming) {
+      if (nextExpiry !== resumingExpiry) {
+        return Promise.reject(problem("Another connection renewal is still finishing."));
+      }
+      return resuming;
+    }
+    resumingExpiry = nextExpiry;
+    resuming = Promise.resolve().then(async () => {
+      if (renewing && await renewing !== true) return false;
+      if (closed) return false;
+      if (!channel.getState().suspended) throw problem("Suspend the connection before renewing it.");
+      if (!await finishLocal()) return false;
+      if (!await waitForSaveIdle()) return false;
+      await channel.resumeAfterRenewal(
+        nextExpiry === undefined ? {} : { expiresAtMs: nextExpiry }
+      );
+      return !closed && channel.getState().connected;
+    }).finally(() => {
+      resuming = null;
+      resumingExpiry = undefined;
+      emit("renewal", { active: inRenewal() });
+    });
+    emit("renewal", { active: true });
+    return resuming;
+  }
+
   channel = createNotebookLiveChannel({
     transport,
     classId,
@@ -343,8 +403,13 @@ export async function createNotebookStudentSync({
       persistence,
       sendBatch: reconciliation.sendBatch,
 
-      onState: value =>
-        emit("save", value),
+      onState: value => {
+        emit("save", value);
+        if (!value.saving) {
+          for (const resolve of idleWaiters) resolve();
+          idleWaiters.clear();
+        }
+      },
 
       onAcknowledged: acknowledgement => {
         const affected = new Set(
@@ -370,8 +435,14 @@ export async function createNotebookStudentSync({
   return {
     connect() {
       open();
+      if (inRenewal()) {
+        return Promise.reject(problem("The notebook connection is renewing.", 408));
+      }
       return channel.connect();
     },
+
+    suspendForRenewal,
+    resumeAfterRenewal,
 
     enqueue,
 
@@ -381,13 +452,21 @@ export async function createNotebookStudentSync({
     ) {
       open();
 
+      if (inRenewal()) {
+        throw problem("Keep this page open while the connection renews.");
+      }
+      const epoch = renewalEpoch;
+
       if (!(await finishLocal())) {
         throw problem(
           "Local marks are not yet safely queued."
         );
       }
 
-      return hydrate(page, isCurrent);
+      if (inRenewal() || epoch !== renewalEpoch) {
+        throw problem("Keep this page open while the connection renews.");
+      }
+      return hydrate(page, () => epoch === renewalEpoch && isCurrent());
     },
 
     getPageState(page) {
@@ -404,6 +483,7 @@ export async function createNotebookStudentSync({
     getState() {
       return {
         closed,
+        renewing: inRenewal(),
         connection: channel.getState(),
         save: queue.getState(),
         failedLocalCount: failedLocal.size,
@@ -412,19 +492,24 @@ export async function createNotebookStudentSync({
 
     resume() {
       open();
+      if (inRenewal()) return false;
       queue.resume();
     },
 
     async flush() {
+      const epoch = renewalEpoch;
       if (!(await finishLocal())) {
         return false;
       }
 
+      if (inRenewal() || epoch !== renewalEpoch) return false;
       const saved = await queue.flush();
 
       return (
         saved &&
         !closed &&
+        !inRenewal() &&
+        epoch === renewalEpoch &&
         !writes.size &&
         !failedLocal.size &&
         !queue.getState().pendingCount
@@ -433,6 +518,7 @@ export async function createNotebookStudentSync({
 
     releasePage(page) {
       open();
+      if (inRenewal()) return false;
 
       const target = pages.get(page);
 
@@ -468,6 +554,8 @@ export async function createNotebookStudentSync({
 
       closed = true;
       channel.close();
+      for (const resolve of idleWaiters) resolve();
+      idleWaiters.clear();
 
       closing = (async () => {
         await queue.close();
