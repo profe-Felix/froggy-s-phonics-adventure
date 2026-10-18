@@ -120,12 +120,8 @@ export async function createNotebookStudentController({
       isCurrent: () => !closed && generation === epoch,
     }), () => !closed && generation === epoch);
   }
-  async function finishPending() {
-    if (!pending) return;
-    const action = pending;
-    await action.run();
-    if (!await sync.flush()) throw new Error("This action is not confirmed yet. Keep the notebook open.");
-    if (!await refresh()) throw new Error("The saved page needs refreshing. Keep the notebook open.");
+  function completePending(action) {
+    if (pending !== action) throw new Error("The pending notebook action changed while saving.");
     if (action.kind === "undo" || action.kind === "redo") {
       const h = history(action.page);
       const from = action.kind === "undo" ? h.undo : h.redo;
@@ -134,6 +130,14 @@ export async function createNotebookStudentController({
       if (index >= 0) { from.splice(index, 1); to.push(action.group); }
     }
     pending = null;
+  }
+  async function finishPending() {
+    if (!pending) return;
+    const action = pending;
+    await action.run();
+    if (!await sync.flush()) throw new Error("This action is not confirmed yet. Keep the notebook open.");
+    if (!await refresh()) throw new Error("The saved page needs refreshing. Keep the notebook open.");
+    completePending(action);
   }
   async function drain() {
     if (await finishGesture() !== true) throw new Error("Some marks are not safely stored yet. Keep this page open.");
@@ -259,19 +263,37 @@ export async function createNotebookStudentController({
           // Do not call finishPending()/drain() over the expiring credential.
           if (pending) await pending.run();
           const allowed = page => candidate.allowedPages === null || candidate.allowedPages.includes(page);
-          if (!allowed(displayed) || sync.getPending().some(record => !allowed(record.operation.page))) {
+          if (!allowed(displayed)) {
             throw new Error("Renewal removed a page still needed by this notebook. Keep it open and ask the teacher to restore its page access.");
           }
+          const queued = sync.getPending();
+          const recoverBeforeReady = queued.length > 0 && (
+            candidate.canWrite !== true ||
+            queued.some(record => !allowed(record.operation.page))
+          );
+          const recoveredAction = recoverBeforeReady ? pending : null;
           if (!current() || prepared.commit() !== true) {
             throw new Error("Notebook renewal was cancelled or expired. Existing work remains open.");
           }
           committed = true;
           policyGeneration = policy.replaceSession(candidate, { context });
           session = copy(candidate);
+          if (recoverBeforeReady) {
+            const recoveryEpoch = epoch;
+            const saved = await sync.recoverPending({
+              isFrozen: () => busy === true && !closed &&
+                sync.getState().connection.suspended === true,
+              isCurrent: () => current() && epoch === recoveryEpoch,
+            });
+            if (saved !== true || !current() || epoch !== recoveryEpoch) {
+              throw new Error("Pending work is not yet confirmed. The notebook stays locked; keep it open and retry the connection.");
+            }
+          }
           if (await sync.resumeAfterRenewal({ expiresAtMs: candidate.expiresAtMs }) !== true) {
             throw new Error("The renewed notebook connection is not ready. Existing work remains open.");
           }
           if (!current()) throw new Error("Notebook renewal finished after cancellation. Existing work remains open.");
+          if (recoveredAction) completePending(recoveredAction);
           error = "";
           autoBlocked = false;
           return true;
