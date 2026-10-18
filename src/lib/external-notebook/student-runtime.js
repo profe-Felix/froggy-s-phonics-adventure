@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { NotebookStudentView } from "../../components/external-notebook/NotebookStudentView";
+import { NotebookStudentView } from "./NotebookStudentView";
 import { createNotebookStudentController } from "./student-controller";
 
 // Student mount only. The engine dispatcher and rollout flags stay unchanged.
