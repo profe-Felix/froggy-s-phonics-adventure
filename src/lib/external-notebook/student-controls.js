@@ -134,6 +134,11 @@ export function createNotebookStudentControls({
       );
     }
 
+    // Compatibility for managed classes created with the historical page-10
+    // database default. A waiting practice workspace has no teacher cursor to
+    // follow. Keep live/paused/ended controls and every signed scope check strict.
+    const currentPage = kind === "assignment" && value.status === "waiting" &&
+      value.currentPage === 10 && count < 10 ? 1 : value.currentPage;
     if (
       ![
         "waiting",
@@ -142,8 +147,8 @@ export function createNotebookStudentControls({
         "ended",
       ].includes(value.status) ||
       typeof value.followTeacher !== "boolean" ||
-      !positive(value.currentPage) ||
-      value.currentPage > count ||
+      !positive(currentPage) ||
+      currentPage > count ||
       !positive(value.capacity) ||
       value.capacity > 100 ||
       studentNumber > value.capacity ||
@@ -162,6 +167,7 @@ export function createNotebookStudentControls({
 
     return Object.freeze({
       ...value,
+      currentPage,
       ...(kind === "assignment" ? {
         status: ["waiting", "ended"].includes(value.status) ||
           (value.targetStudentNumbers.length > 0 && !value.targetStudentNumbers.includes(studentNumber))
