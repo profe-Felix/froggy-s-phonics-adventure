@@ -115,6 +115,7 @@ export async function mountNotebookStudent({
     });
   }
   function acceptState(frame) {
+    if (disposed) return;
     latest = frame;
     if (frame.ready && frame.syncState?.connection.connected) openingError = "";
     if (frame.busy) lockInput(true);
@@ -128,7 +129,7 @@ export async function mountNotebookStudent({
   function beforeUnload(event) {
     finishInBackground();
     const state = controller?.getState().syncState;
-    if (state?.save.pendingCount > 0 || state?.failedLocalCount > 0 || localError ||
+    if (state?.renewing === true || state?.save.pendingCount > 0 || state?.failedLocalCount > 0 || localError ||
         (renderError && everEditable)) {
       event.preventDefault();
       event.returnValue = "";
@@ -165,6 +166,21 @@ export async function mountNotebookStudent({
       const saved = await controller.flush();
       if (saved === true) localError = "";
       return saved === true;
+    },
+    async renewSession(next, { isCurrent = () => true } = {}) {
+      if (disposed || closeTask) throw new Error("This student notebook is closed or closing.");
+      if (renderError) throw new Error("The notebook screen encountered an error. Existing work remains protected.");
+      if (typeof isCurrent !== "function") throw new Error("A notebook renewal guard is required.");
+      const current = () => !disposed && !closeTask && !renderError && isCurrent() === true;
+      if (!current()) return false;
+      const renewed = await controller.renewSession(next, { isCurrent: current });
+      if (!current()) return false;
+      if (renewed !== true) throw new Error("The renewed notebook connection is not ready. Existing work remains protected.");
+      openingError = "";
+      // Readiness is not a save acknowledgement. Keep localError until flush.
+      latest = controller.getState();
+      requestRender();
+      return true;
     },
     async updateContext(next) {
       if (disposed) throw new Error("This student notebook has closed.");
