@@ -83,7 +83,7 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'letter_sort': return <LetterSortStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} {...student}/>;
     case 'powerful_word': return <PowerfulWordStep onComplete={onComplete} presetId={config.preset}/>;
     case 'syllable_train': return <SyllableTrainStep onComplete={onComplete}/>;
-    case 'syllable_blender': return <SyllableBlenderStep onComplete={onComplete} curriculumPosition={config.curriculumPosition} curriculumPositionOverride={config.curriculumPositionOverride}/>;
+    case 'syllable_blender': return <SyllableBlenderStep onComplete={onComplete} targets={config.targets} curriculumPosition={config.curriculumPosition} curriculumPositionOverride={config.curriculumPositionOverride}/>;
     case 'activities': return <ActivitiesStep onComplete={onComplete} studentName={selectedStudent?.name||`Estudiante ${studentNumber||''}`} stepConfig={config} completion={comp} activityState={getActivityState?.(stepIndex)} onActivityState={state=>saveActivityState?.(stepIndex,state)}/>;
     case 'word_builder': return <WordBuilderStep onComplete={onComplete} {...student} studentData={activityStudentData} onStudentPatch={onStudentPatch} {...curriculum}/>;
     case 'fluency': return <FluencyPracticeStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;

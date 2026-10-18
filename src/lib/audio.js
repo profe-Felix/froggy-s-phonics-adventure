@@ -113,8 +113,8 @@ export async function preloadSilenceStart(url) {
 // browser's speech synthesizer if the backend is unreachable.
 const ttsCache = new Map();
 
-export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnded) {
-  if (!text) return;
+export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnded, { signal, onError } = {}) {
+  if (!text || signal?.aborted) return false;
   // When no explicit voice is passed, use the teacher's configured default
   // (TtsVoiceSetting entity → es-US-Wavenet-A) so every "Escuchar" button
   // respects the chosen accent (US Spanish = seseo, no distinción).
@@ -131,25 +131,51 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnde
       if (url) ttsCache.set(key, url);
     } catch { /* fall through to speechSynthesis */ }
   }
+  if (signal?.aborted) return false;
   if (url) {
     try {
       const a = _trackAudio(new Audio(url));
+      let started = false;
       a.playbackRate = rate;
-      if (onEnded) a.addEventListener('ended', onEnded, { once: true });
-      a.play().catch(() => {});
-      return;
+      const abort = () => a.pause();
+      const cleanup = () => signal?.removeEventListener('abort', abort);
+      signal?.addEventListener('abort', abort, { once: true });
+      a.addEventListener('ended', () => {
+        cleanup();
+        if (!signal?.aborted) onEnded?.();
+      }, { once: true });
+      a.addEventListener('error', error => {
+        cleanup();
+        if (started && !signal?.aborted) onError?.(error);
+      }, { once: true });
+      try { await a.play(); } catch (error) { cleanup(); throw error; }
+      started = true;
+      return true;
     } catch { /* fall through */ }
   }
+  if (signal?.aborted) return false;
   // Fallback: browser speech synthesizer (less natural but always available)
   try {
+    if (!window.speechSynthesis || typeof SpeechSynthesisUtterance !== 'function') return false;
     window.speechSynthesis?.cancel();
     const u = new SpeechSynthesisUtterance(text);
     const fallbackLang = lang === 'en' ? 'en-US' : (langFromVoice(effectiveVoice) || 'es-US');
     u.lang = fallbackLang;
     u.rate = rate;
-    if (onEnded) u.addEventListener('end', onEnded, { once: true });
-    window.speechSynthesis?.speak(u);
-  } catch { /* best-effort */ }
+    const abort = () => window.speechSynthesis.cancel();
+    const cleanup = () => signal?.removeEventListener('abort', abort);
+    signal?.addEventListener('abort', abort, { once: true });
+    u.addEventListener('end', () => {
+      cleanup();
+      if (!signal?.aborted) onEnded?.();
+    }, { once: true });
+    u.addEventListener('error', error => {
+      cleanup();
+      if (!signal?.aborted) onError?.(error);
+    }, { once: true });
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch { return false; }
 }
 
 // Preload (generate + cache) TTS audio without playing it. Fire-and-forget:

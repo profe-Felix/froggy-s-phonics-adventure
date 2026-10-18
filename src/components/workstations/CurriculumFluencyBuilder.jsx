@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { requestWithRetry } from '@/lib/classroomSync';
 import { buildFluencyPreset } from '@/lib/literacy/curriculumContentBuilder';
+import { latestSightWordIntroduction } from '@/lib/literacy/sightWordProgression.mjs';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 const DAYS = [
@@ -29,6 +30,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
   const [weekId, setWeekId] = useState('');
   const [dayKey, setDayKey] = useState('');
   const [contentType, setContentType] = useState('sight_words');
+  const [reviewLatest, setReviewLatest] = useState(false);
 
   const { data: lessons = [], isLoading } = useQuery({
     queryKey: ['fluency-curriculum-lessons', ACTIVE_SCHOOL_YEAR],
@@ -67,16 +69,21 @@ export default function CurriculumFluencyBuilder({ onStart }) {
   }, [selectedWeek, availableDays, dayKey]);
 
   const selectedDay = availableDays.find(d => d.day === dayKey) || null;
+  const latestIntroduction = useMemo(() => selectedDay ? latestSightWordIntroduction({
+    moduleNumber: selectedDay.module_number, lessonNumber: selectedDay.curriculum_lesson_number,
+  }) : null, [selectedDay]);
 
   const preset = useMemo(() => {
     if (!selectedDay) return null;
     return buildFluencyPreset({
-      moduleNumber: selectedDay.module_number,
-      lessonNumber: selectedDay.curriculum_lesson_number,
+      moduleNumber: reviewLatest && contentType === 'sight_words_new'
+        ? latestIntroduction?.module_number : selectedDay.module_number,
+      lessonNumber: reviewLatest && contentType === 'sight_words_new'
+        ? latestIntroduction?.curriculum_lesson_number : selectedDay.curriculum_lesson_number,
       contentType,
       lessons,
     });
-  }, [selectedDay, contentType, lessons]);
+  }, [selectedDay, contentType, lessons, reviewLatest, latestIntroduction]);
 
   const canStart = !!preset && preset.content.length > 0;
 
@@ -91,7 +98,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
         <label className="font-bold text-sm">Week</label>
         <select
           value={weekId}
-          onChange={(e) => { setWeekId(e.target.value); setDayKey(''); }}
+          onChange={(e) => { setWeekId(e.target.value); setDayKey(''); setReviewLatest(false); }}
           className="px-3 py-2 rounded-lg border font-bold"
           disabled={isLoading}
         >
@@ -108,7 +115,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
         <label className="font-bold text-sm">Day</label>
         <select
           value={dayKey}
-          onChange={(e) => setDayKey(e.target.value)}
+          onChange={(e) => { setDayKey(e.target.value); setReviewLatest(false); }}
           className="px-3 py-2 rounded-lg border font-bold"
           disabled={!availableDays.length}
         >
@@ -126,7 +133,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
             <button
               key={t.key}
               type="button"
-              onClick={() => setContentType(t.key)}
+              onClick={() => { setContentType(t.key); setReviewLatest(false); }}
               className={`flex-1 min-w-[90px] px-3 py-2 rounded-lg border font-bold text-sm transition ${
                 contentType === t.key
                   ? 'bg-emerald-600 text-white border-emerald-600'
@@ -139,6 +146,18 @@ export default function CurriculumFluencyBuilder({ onStart }) {
         </div>
       </div>
 
+      {preset && contentType === 'sight_words_new' && !preset.content.length && (
+        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+          No new HFW are introduced at M{selectedDay.module_number}.L{selectedDay.curriculum_lesson_number}.
+          {latestIntroduction && <button type="button" className="block mt-2 font-bold underline"
+            onClick={() => setReviewLatest(true)}>
+            Review the latest introduction: M{latestIntroduction.module_number}.L{latestIntroduction.curriculum_lesson_number}
+          </button>}
+        </div>
+      )}
+      {reviewLatest && contentType === 'sight_words_new' && (
+        <p className="text-sm text-slate-600">Reviewing the latest HFW introduction, not new words for the selected day.</p>
+      )}
       {preset && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="font-bold text-sm text-slate-700">

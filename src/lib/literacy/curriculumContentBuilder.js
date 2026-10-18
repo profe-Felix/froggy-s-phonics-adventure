@@ -5,22 +5,14 @@
 // lessons appear more frequently than older ones (exponential decay).
 //
 // Graphemes come from the static ES_GRAPHEME_CHART (no data loading needed).
-// Sight words come from lesson literacy_progression records (lessons array
-// must be passed in).
+// Sight words follow the exact HFW introduction chart used by the dashboard.
 
 import {
   ES_GRAPHEME_SEQUENCE,
   compareCurriculumPositions,
 } from './curriculumGraphemes';
-import {
-  splitLiteracyList,
-  normalizeSpanish,
-} from './lessonProgression';
-import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
-
-// Total curriculum lessons = 9 modules × 15 lessons. Used by the static
-// fallback when no lesson records carry literacy_progression.sightWords.
-const TOTAL_CURRICULUM_LESSONS = 135;
+import { normalizeSpanish } from './lessonProgression';
+import { sightWordIntroductions, newSightWordsAt, knownSightWordsAt } from './sightWordProgression.mjs';
 
 // decay=0.6 → each lesson back gets 60% of the weight of the one after it.
 const DEFAULT_DECAY = 0.6;
@@ -117,134 +109,17 @@ export function buildSyllablePool({ moduleNumber, lessonNumber, decay = DEFAULT_
   return applyWeightedDecay(groups, 5, decay);
 }
 
-// Extract sight words for a specific daily lesson position. Prefers the
-// week-level literacy_progression.sightWords (backward compatible); falls back
-// to the matching daily lesson's dictation step config.lines, which carries
-// the specific words the teacher assigned to that curriculum lesson.
-function getDailyLessonSightWords(lesson, moduleNumber, lessonNumber) {
-  const weekWords = splitLiteracyList(lesson?.literacy_progression?.sightWords);
-  if (weekWords.length > 0) return weekWords;
-
-  const dailyLessons = lesson?.daily_lessons || [];
-  const matching = dailyLessons.find(d =>
-    d.active !== false &&
-    Number(d.module_number) === moduleNumber &&
-    Number(d.curriculum_lesson_number) === lessonNumber
-  );
-  if (!matching) return [];
-  const dictation = (matching.steps || []).find(s => s.mode === 'dictation');
-  const lines = dictation?.config?.lines;
-  if (Array.isArray(lines)) {
-    return lines.map(l => String(l).trim()).filter(Boolean);
-  }
-  return [];
+// ── Sight words: exact introductions, cumulative words, weighted review ─────
+export function buildSightWordPool({ moduleNumber, lessonNumber, decay = DEFAULT_DECAY }) {
+  return applyWeightedDecay(sightWordIntroductions({ moduleNumber, lessonNumber }).map(row => row.words), 10, decay);
 }
 
-// ── Sight words (from lesson literacy_progression) ─────────────────────────
-export function buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay = DEFAULT_DECAY }) {
-  const target = { module_number: moduleNumber, curriculum_lesson_number: lessonNumber };
-
-  const weekWords = [];
-  (lessons || []).forEach((lesson) => {
-    const dailyLessons = lesson.daily_lessons || [];
-    const positions = dailyLessons
-      .filter(d => d.active !== false)
-      .map(d => ({
-        module_number: Number(d.module_number) || 0,
-        curriculum_lesson_number: Number(d.curriculum_lesson_number) || 0,
-      }))
-      .filter(p => p.module_number > 0 && p.curriculum_lesson_number > 0)
-      .filter(p => compareCurriculumPositions(p, target) <= 0);
-
-    if (positions.length === 0) return;
-
-    // Collect sight words from each daily lesson's dictation (or week-level field)
-    const wordsForLesson = [];
-    positions.forEach(p => {
-      const words = getDailyLessonSightWords(lesson, p.module_number, p.curriculum_lesson_number);
-      words.forEach(w => { if (!wordsForLesson.includes(w)) wordsForLesson.push(w); });
-    });
-    if (wordsForLesson.length > 0) {
-      const maxPos = positions.reduce((max, p) =>
-        compareCurriculumPositions(p, max) > 0 ? p : max
-      );
-      weekWords.push({ words: wordsForLesson, position: maxPos });
-    }
-  });
-
-  weekWords.sort((a, b) => compareCurriculumPositions(a.position, b.position));
-
-  // Fallback: when no lesson records carry literacy_progression.sightWords,
-  // use a cumulative position-based subset of the static SIGHT_WORDS_EASY
-  // list (ordered by pedagogical progression). Mirrors useKnownSightWords.
-  if (weekWords.length === 0) {
-    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
-    const wordCount = Math.max(
-      5,
-      Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS)
-    );
-    return SIGHT_WORDS_EASY.slice(0, wordCount);
-  }
-
-  return applyWeightedDecay(weekWords.map(w => w.words), 10, decay);
+export function buildSightWordPoolNew({ moduleNumber, lessonNumber }) {
+  return newSightWordsAt({ moduleNumber, lessonNumber });
 }
 
-// ── New sight words introduced at exactly this lesson position ─────────────
-// Returns only the words first introduced at M{module}.L{lesson}, deduped.
-export function buildSightWordPoolNew({ moduleNumber, lessonNumber, lessons }) {
-  const newWords = [];
-  (lessons || []).forEach((lesson) => {
-    const dailyLessons = lesson.daily_lessons || [];
-    const hasExact = dailyLessons.some(d =>
-      d.active !== false &&
-      Number(d.module_number) === moduleNumber &&
-      Number(d.curriculum_lesson_number) === lessonNumber
-    );
-    if (!hasExact) return;
-    const sightWords = getDailyLessonSightWords(lesson, moduleNumber, lessonNumber);
-    sightWords.forEach(w => { if (!newWords.includes(w)) newWords.push(w); });
-  });
-
-  // Fallback: the incremental delta of the static list between this lesson
-  // and the previous one.
-  if (newWords.length === 0) {
-    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
-    const countHere = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
-    const prevIndex = Math.max(1, lessonIndex - 1);
-    const countPrev = Math.max(5, Math.ceil(prevIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
-    return SIGHT_WORDS_EASY.slice(countPrev, countHere);
-  }
-  return newWords;
-}
-
-// ── All cumulative sight words up to and including this lesson ─────────────
-// Flat deduped list of every sight word introduced at or before this position.
-export function buildSightWordPoolAll({ moduleNumber, lessonNumber, lessons }) {
-  const target = { module_number: moduleNumber, curriculum_lesson_number: lessonNumber };
-  const all = [];
-  (lessons || []).forEach((lesson) => {
-    const dailyLessons = lesson.daily_lessons || [];
-    const positions = dailyLessons
-      .filter(d => d.active !== false)
-      .map(d => ({
-        module_number: Number(d.module_number) || 0,
-        curriculum_lesson_number: Number(d.curriculum_lesson_number) || 0,
-      }))
-      .filter(p => p.module_number > 0 && p.curriculum_lesson_number > 0)
-      .filter(p => compareCurriculumPositions(p, target) <= 0);
-    if (positions.length === 0) return;
-    positions.forEach(p => {
-      const sightWords = getDailyLessonSightWords(lesson, p.module_number, p.curriculum_lesson_number);
-      sightWords.forEach(w => { if (!all.includes(w)) all.push(w); });
-    });
-  });
-
-  if (all.length === 0) {
-    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
-    const wordCount = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
-    return SIGHT_WORDS_EASY.slice(0, wordCount);
-  }
-  return all;
+export function buildSightWordPoolAll({ moduleNumber, lessonNumber }) {
+  return knownSightWordsAt({ moduleNumber, lessonNumber });
 }
 
 // ── Fluency preset builder ─────────────────────────────────────────────────

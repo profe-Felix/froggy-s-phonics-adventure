@@ -707,7 +707,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
         </div>
       ) : step.mode === 'syllable_blender' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
-          <p className="text-[10px] text-gray-400">Daily lessons auto-build decodable words from the day's M#.L# grapheme progression with weighted spiral review.</p>
+          <p className="text-[10px] text-gray-400">Target words below take priority, even with a curriculum override. Leave them blank for curriculum-generated practice. Students hear the words without seeing their spelling; missing recordings use your preferred TTS voice.</p>
           <label className="text-xs text-gray-600 font-bold">Curriculum position override (blank = daily lesson M#.L#)
             <input value={step.config?.curriculumPositionOverride || ''}
               onChange={e => update({ config: { ...step.config, curriculumPositionOverride: e.target.value } })}

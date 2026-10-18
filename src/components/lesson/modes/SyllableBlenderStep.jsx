@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import ElkoninActivity from '@/components/workstations/ElkoninActivity';
 import StepDoneBar from './StepDoneBar';
 import { buildSyllableBlenderWords, parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
+import { elkoninTargets } from '@/lib/literacy/elkoninTargets.mjs';
 
 // Embedded student step for Elkonin boxes (Syllable Blender) with default
 // words and media buckets — same fallback the standalone page uses.
@@ -14,9 +15,11 @@ const DEFAULT_MEDIA = {
   wordAudio: { bucket: 'audio', prefix: 'es/words' },
 };
 
-export default function SyllableBlenderStep({ onComplete, curriculumPosition, curriculumPositionOverride }) {
+export default function SyllableBlenderStep({ onComplete, curriculumPosition, curriculumPositionOverride, targets }) {
   const words = useMemo(() => {
-    if (!curriculumPosition) return DEFAULT_WORDS;
+    const explicit = elkoninTargets(targets);
+    if (explicit.length) return explicit;
+    if (!curriculumPosition && !curriculumPositionOverride) return DEFAULT_WORDS;
     const pos = curriculumPositionOverride
       ? parseCurriculumKey(curriculumPositionOverride)
       : curriculumPosition;
@@ -27,7 +30,7 @@ export default function SyllableBlenderStep({ onComplete, curriculumPosition, cu
       if (built.length > 0) return built;
     }
     return DEFAULT_WORDS;
-  }, [curriculumPosition, curriculumPositionOverride]);
+  }, [targets, curriculumPosition, curriculumPositionOverride]);
 
   return (
     <div className="relative h-full flex flex-col bg-[#f7f8fc]">

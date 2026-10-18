@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { markersToPretty } from '@/lib/markers';
 import { syllabifyEs } from '@/lib/spanishSyllables';
 import { resolveImageForWord, resolveSyllableAudio, resolveWordAudio } from '@/lib/supabaseStorage';
+import { playTts } from '@/lib/audio';
 
 // Student activity: Elkonin boxes. Each syllable has a counter; tap to hear it.
-// When every counter has been heard (or marked missing), the reveal button
+// When every counter has actually finished playing, the reveal button
 // uncovers the picture and plays the whole word.
-export default function ElkoninActivity({ words, behavior, media, index: controlledIndex, onIndexChange }) {
+export default function ElkoninActivity({ words, media, index: controlledIndex, onIndexChange }) {
   const controlled = controlledIndex !== undefined;
   const [localIndex, setLocalIndex] = useState(0);
   const [rebuildKey, setRebuildKey] = useState(0);
@@ -22,15 +23,21 @@ export default function ElkoninActivity({ words, behavior, media, index: control
   const [imgUrl, setImgUrl] = useState(null);
   const syllAudioRefs = useRef([]);
   const wordAudioRef = useRef(null);
+  const promptRef = useRef(null);
+  const [audioError, setAudioError] = useState('');
+  const [speaking, setSpeaking] = useState(null);
+  const [wordReady, setWordReady] = useState(false);
 
   const word = words[index] || '';
-  const hideWord = !!behavior?.hideWord;
-  const hideWordUI = !!behavior?.hideWordUI;
 
   useEffect(() => {
     let cancelled = false;
     const pretty = markersToPretty(word);
     setRevealed(false);
+    setImgUrl(null);
+    setAudioError('');
+    setSpeaking(null);
+    setWordReady(false);
     const syls = syllabifyEs(pretty);
     setSyllables(syls);
     setHeard(new Array(syls.length).fill(false));
@@ -38,42 +45,79 @@ export default function ElkoninActivity({ words, behavior, media, index: control
     syllAudioRefs.current = new Array(syls.length).fill(null);
     wordAudioRef.current = null;
 
-    resolveImageForWord(pretty, media.images).then((url) => { if (!cancelled) setImgUrl(url); });
+    resolveImageForWord(pretty, media.images).then((url) => { if (!cancelled) setImgUrl(url); })
+      .catch(() => { if (!cancelled) setImgUrl(null); });
     resolveWordAudio(pretty, media.wordAudio).then((url) => {
-      if (cancelled || !url) return;
-      const a = new Audio(url); a.preload = 'auto'; wordAudioRef.current = a;
-    });
+      if (cancelled) return;
+      if (url) { const a = new Audio(url); a.preload = 'auto'; wordAudioRef.current = a; }
+      setWordReady(true);
+    }).catch(() => { if (!cancelled) setWordReady(true); });
     syls.forEach((s, i) => {
       resolveSyllableAudio(pretty, s, i, media.syllableAudio).then((url) => {
         if (cancelled) return;
         if (url) {
           const a = new Audio(url); a.preload = 'auto'; syllAudioRefs.current[i] = a;
-          setHasAudio((p) => { const n = [...p]; n[i] = true; return n; });
-        } else {
-          // No audio for this syllable → counts as already heard.
-          setHeard((p) => { const n = [...p]; n[i] = true; return n; });
         }
+        // Missing recordings are playable through TTS, never "already heard".
+        setHasAudio((p) => { const n = [...p]; n[i] = true; return n; });
+      }).catch(() => {
+        if (!cancelled) setHasAudio(p => { const n = [...p]; n[i] = true; return n; });
       });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      promptRef.current?.abort();
+      syllAudioRefs.current.forEach(a => a?.pause());
+      wordAudioRef.current?.pause();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word, rebuildKey]);
 
   const allHeard = heard.length > 0 && heard.every(Boolean);
 
-  const onCounter = (i) => {
-    if (!hasAudio[i]) return;
-    const a = syllAudioRefs.current[i];
-    if (!a) return;
-    try { a.currentTime = 0; } catch {}
-    a.play().catch(() => {});
-    setHeard((p) => { if (p[i]) return p; const n = [...p]; n[i] = true; return n; });
+  const playPrompt = async (i = null) => {
+    if (i === null ? !wordReady : !hasAudio[i]) return;
+    promptRef.current?.abort();
+    const owner = new AbortController();
+    promptRef.current = owner;
+    setAudioError('');
+    setSpeaking(i === null ? 'word' : i);
+    const finished = () => {
+      if (owner.signal.aborted || promptRef.current !== owner) return;
+      setSpeaking(null);
+      if (i !== null) setHeard(p => { const n = [...p]; n[i] = true; return n; });
+    };
+    const text = i === null ? markersToPretty(word) : syllables[i];
+    const recording = i === null ? wordAudioRef.current : syllAudioRefs.current[i];
+    const failed = () => {
+      if (owner.signal.aborted || promptRef.current !== owner) return;
+      setSpeaking(null);
+      setAudioError('No se pudo reproducir el audio. Toca para intentarlo otra vez.');
+    };
+    const fallback = () => playTts(text, 'es', 0.85, '', finished, { signal: owner.signal, onError: failed });
+    let started = false;
+    try {
+      if (recording) {
+        let recordingStarted = false;
+        recording.currentTime = 0;
+        recording.onended = finished;
+        recording.onerror = () => {
+          if (recordingStarted && !owner.signal.aborted) void fallback().then(ok => { if (!ok) failed(); });
+        };
+        owner.signal.addEventListener('abort', () => recording.pause(), { once: true });
+        await recording.play();
+        recordingStarted = true;
+        started = true;
+      } else started = await fallback();
+    } catch { started = await fallback(); }
+    if (!started && !owner.signal.aborted) {
+      failed();
+    }
   };
 
   const onReveal = () => {
     setRevealed(true);
-    const a = wordAudioRef.current;
-    if (a) { try { a.currentTime = 0; } catch {}; a.play().catch(() => {}); }
+    void playPrompt();
   };
 
   const go = (d) => setIdx((index + d + words.length) % words.length);
@@ -82,13 +126,14 @@ export default function ElkoninActivity({ words, behavior, media, index: control
   return (
     <div className="flex-1 flex flex-col items-center p-4 gap-4">
       <div className="w-full max-w-2xl flex items-center gap-2 flex-wrap justify-center">
-        {showNav && !hideWordUI && (
+        {showNav && (
           <select
+            aria-label="Elegir número de palabra"
             value={index}
             onChange={(e) => setIdx(+e.target.value)}
             className="px-3 py-2 rounded-lg border font-bold bg-white"
           >
-            {words.map((w, i) => (<option key={i} value={i}>{w}</option>))}
+            {words.map((_, i) => (<option key={i} value={i}>Palabra {i + 1}</option>))}
           </select>
         )}
         {showNav && <button onClick={() => go(-1)} disabled={words.length <= 1} className="px-3 py-2 rounded-lg border font-bold bg-white disabled:opacity-50">◀</button>}
@@ -96,7 +141,7 @@ export default function ElkoninActivity({ words, behavior, media, index: control
         {showNav && <button onClick={() => { setRebuildKey((k) => k + 1); if (controlled) { onIndexChange && onIndexChange(0); } }} className="px-3 py-2 rounded-lg border font-bold bg-white">Reiniciar</button>}
         <button
           onClick={onReveal}
-          disabled={!allHeard}
+          disabled={!allHeard || !wordReady}
           className="px-4 py-2 rounded-lg font-bold text-white disabled:opacity-40"
           style={{ background: allHeard ? '#2563eb' : '#9ca3af' }}
         >
@@ -117,13 +162,17 @@ export default function ElkoninActivity({ words, behavior, media, index: control
           />
         </div>
 
-        {!hideWord && !hideWordUI && (
-          <h2 className="text-center text-2xl font-bold mt-2">{markersToPretty(word)}</h2>
-        )}
+        <button type="button" onClick={() => { void playPrompt(); }}
+          disabled={!wordReady}
+          aria-busy={speaking === 'word'}
+          className="mt-3 w-full py-3 rounded-xl font-bold border border-blue-300 text-blue-800 bg-blue-50">
+          {speaking === 'word' ? 'Escuchando…' : 'Escuchar palabra'}
+        </button>
+        {audioError && <p role="alert" className="text-sm text-red-700 mt-2">{audioError}</p>}
 
         <button
           onClick={onReveal}
-          disabled={!allHeard}
+          disabled={!allHeard || !wordReady}
           className="mt-3 w-full py-3 rounded-xl text-xl font-bold text-white disabled:opacity-40"
           style={{ background: allHeard ? '#2563eb' : '#9ca3af' }}
         >
@@ -134,8 +183,10 @@ export default function ElkoninActivity({ words, behavior, media, index: control
           {syllables.map((s, i) => (
             <div key={i} className="min-h-[84px] bg-white border-2 border-gray-900 rounded-lg flex items-center justify-center">
               <button
-                onClick={() => onCounter(i)}
-                title={`Escuchar: ${s}`}
+                onClick={() => { void playPrompt(i); }}
+                title={`Escuchar sílaba ${i + 1}`}
+                aria-label={`Escuchar sílaba ${i + 1}`}
+                aria-busy={speaking === i}
                 className="w-11 h-11 rounded-full border-2 border-gray-900 transition active:scale-95"
                 style={{
                   background: !hasAudio[i] ? '#d1d5db' : (heard[i] ? '#10b981' : '#111827'),
