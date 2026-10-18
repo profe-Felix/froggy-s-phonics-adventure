@@ -1,3 +1,5 @@
+import { createNotebookRecoverySender } from "./recovery";
+
 // Bind to exactly one authorized class/student/workbook.
 // Freeze input and finish local gestures before loadPage().
 // Reading receipts is NOT acknowledging or deleting the local outbox.
@@ -297,10 +299,15 @@ export function createNotebookReconciliation({
         captured.operations
       );
 
-      const response = await sendBatch(
-        captured,
-        options
-      );
+      // Recovery is explicit and save-only. Never silently switch a failed
+      // ordinary write into recovery or loosen its authorization.
+      const recovery = options?.recovery;
+      const response = recovery === undefined
+        ? await sendBatch(captured, options)
+        : await createNotebookRecoverySender({
+          transport, classId, workbookId, studentNumber,
+          isFrozen: recovery?.isFrozen, isCurrent: recovery?.isCurrent,
+        })(captured.operations);
 
       if (
         !response ||
