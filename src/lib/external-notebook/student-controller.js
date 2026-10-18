@@ -67,7 +67,8 @@ export async function createNotebookStudentController({
   function state() {
     const pageState = sync?.getPageState(displayed) || null;
     const syncState = sync?.getState() || null;
-    const locked = busy || handshake || closed || closing || syncState?.renewing === true;
+    const locked = busy || handshake || closed || closing || syncState?.renewing === true ||
+      syncState?.connection.suspended === true;
     const controls = policy.getState({ context, pageState, busy: locked });
     const ready = !closed && !handshake && !!lease && pageState?.ready === true;
     const historyReady = ready && controls.canDraw && !error &&
@@ -146,7 +147,8 @@ export async function createNotebookStudentController({
   }
   async function exclusive(work, allowClosing = false, allowHandshake = false) {
     open();
-    if (busy || (handshake && !allowHandshake) || (closing && !allowClosing)) throw new Error("Another notebook change is still finishing.");
+    if (busy || ((handshake || sync?.getState().connection.suspended === true) && !allowHandshake) ||
+        (closing && !allowClosing)) throw new Error("Another notebook change is still finishing.");
     busy = true; emit();
     try { return await work(); }
     catch (reason) { fail(reason); throw reason; }
@@ -238,6 +240,81 @@ export async function createNotebookStudentController({
   return {
     getState: state,
     connect() { open(); return sync.connect(); },
+    prepareRecovery(next, { isCurrent = () => true } = {}) {
+      return exclusive(async () => {
+        if (typeof isCurrent !== "function") {
+          throw new Error("A recovery owner guard is required.");
+        }
+
+        const candidate = copy(next);
+
+        const scope = value => JSON.stringify([
+          value?.role,
+          value?.kind,
+          value?.sourceId,
+          value?.stepId ?? null,
+          value?.assignmentId,
+          value?.className,
+          value?.schoolYear,
+          value?.student?.id,
+          value?.student?.number,
+          value?.student?.className,
+          value?.student?.schoolYear,
+        ]);
+
+        if (
+          candidate?.role !== "student" ||
+          candidate.kind !== "assessment" ||
+          scope(candidate) !== scope(context)
+        ) {
+          throw new Error(
+            "Recovery must keep the same student, class, assignment and activity."
+          );
+        }
+
+        createNotebookStudentControls({ session, context: candidate });
+
+        const current = () =>
+          !closed && !closing && isCurrent() === true;
+
+        if (!current()) {
+          throw new Error(
+            "Notebook recovery was cancelled. Existing work remains open."
+          );
+        }
+
+        // This is an INPUT lock, not a change to server eligibility. Preserve
+        // the Canvas and original IDs; do not flush an old credential.
+        context = { ...candidate, blocked: true };
+        autoBlocked = true;
+        const generation = ++epoch;
+        handshake = false;
+        emit();
+
+        if (await sync.suspendForRenewal() !== true) {
+          throw new Error(
+            "Some local marks are not safely queued. Keep this notebook open."
+          );
+        }
+
+        if (!current() || generation !== epoch) {
+          throw new Error(
+            "Notebook recovery was cancelled. Existing work remains open."
+          );
+        }
+
+        if (pending) await pending.run();
+
+        if (!current() || generation !== epoch) {
+          throw new Error(
+            "Notebook recovery was cancelled. Existing work remains open."
+          );
+        }
+
+        error = "";
+        return true;
+      }, false, true);
+    },
     renewSession(next, { isCurrent = () => true } = {}) {
       return exclusive(async () => {
         if (typeof isCurrent !== "function" || typeof transport.prepareSession !== "function") {
@@ -247,6 +324,9 @@ export async function createNotebookStudentController({
         // Validate scope without changing the active UI policy.
         const check = createNotebookStudentControls({ session, context });
         check.replaceSession(candidate, { context });
+        if (context.blocked === true && candidate.canWrite !== false) {
+          throw new Error("Save-only recovery requires a read-only connection.");
+        }
         const current = () => !closed && !closing && isCurrent();
         if (!current()) throw new Error("Notebook renewal was cancelled. Existing work remains open.");
         const prepared = transport.prepareSession(candidate, { isCurrent: current });
@@ -299,7 +379,8 @@ export async function createNotebookStudentController({
           return true;
         } catch (reason) {
           prepared.cancel();
-          if (!committed && suspending && !closed && sync.getState().connection.suspended) {
+          if (!committed && suspending && !closed && context.blocked !== true &&
+              sync.getState().connection.suspended) {
             try {
               if (await sync.resumeAfterRenewal() !== true) throw new Error("Previous connection is not ready.");
             } catch {
