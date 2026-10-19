@@ -1,17 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, RefreshCw, Volume2 } from 'lucide-react';
+import { Check, RefreshCw, ThumbsDown, ThumbsUp, Volume2 } from 'lucide-react';
 import SortCard from './SortCard';
 import { useSortSensors } from '@/hooks/useSortSensors';
 import { classifyCard } from '@/lib/lettersort/rounds';
-import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
+import * as lsAudio from '@/lib/lettersort/audio';
+const { playWordAudio, preloadAudio } = lsAudio;
 import { playLetterSound, playTts, stopAllAudio } from '@/lib/audio';
 
 // Speak the instruction prefix, then play the phoneme sound when the speech
 // finishes — concatenated, not overlapping, so students hear "Empieza con el
 // sonido" followed by the target phoneme.
+function familySyllablesOf(col, config) {
+  return col.targetSyllables || config.familySyllables || [];
+}
+
 function playColumnInstruction(col, config, isNotPair, targetLetter) {
   stopAllAudio();
+  if (col.headerKind === 'family') {
+    lsAudio.stopFamilyWordAudio();
+    const sylls = familySyllablesOf(col, config);
+    const prefix = col.positive ? 'Tiene alguna de estas sílabas' : 'No tiene ninguna de estas sílabas';
+    playTts(`${prefix}: ${sylls.join(', ')}`, 'es', 0.8);
+    return;
+  }
   let phoneme = '';
   let prefix = '';
   let suffix = '';
@@ -81,6 +93,31 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   const [locked, setLocked] = useState(new Set());
   const [bad, setBad] = useState(new Set());
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
+  const [audioState, setAudioState] = useState({}); // familyany: cardId -> 'loading' | 'error'
+  const isFamily = config.mode === 'familyany';
+  const familyRoundRef = useRef(round);
+  familyRoundRef.current = round;
+  useEffect(() => {
+    if (isFamily) return () => lsAudio.stopFamilyWordAudio();
+  }, [isFamily]);
+
+  // Card tap audio. familyany uses playFamilyWordAudio (on demand, no preload)
+  // and surfaces a retryable error instead of ever revealing the word.
+  function playCard(card) {
+    if (!isFamily) { playWordAudio(card.coreRaw, AUDIO_OPTS); return; }
+    const fn = lsAudio.playFamilyWordAudio;
+    setAudioState((s) => ({ ...s, [card.id]: 'loading' }));
+    const done = (ok) => setAudioState((s) => {
+      const n = { ...s };
+      if (ok) delete n[card.id]; else n[card.id] = 'error';
+      return n;
+    });
+    try {
+      Promise.resolve(fn(card.coreRaw, AUDIO_OPTS))
+        .then((r) => done(r !== false && !(r && r.ok === false)))
+        .catch(() => done(false));
+    } catch { done(false); }
+  }
 
   // Tracks how many cards were correct on the very first verify pass — used
   // for the coin formula: Math.round((firstTryCorrect / total) * 10).
@@ -122,7 +159,10 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     firstVerifyCorrectRef.current = null;
     autoFirstTryRef.current = new Set();
     autoBouncedRef.current = new Set();
-    preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
+    setAudioState({});
+    // familyany: no bulk preload — recordings are generated on tap.
+    if (config.mode !== 'familyany') preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round]);
 
   // Auto-verify when all cards have been placed into columns, so the round
@@ -206,6 +246,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
         setBad((prev) => new Set([...prev, card.id]));
         setScore((s) => ({ ...s, wrong: s.wrong + 1 }));
         setTimeout(() => {
+          if (isFamily && familyRoundRef.current !== round) return;
           setColCards((prev) => ({
             ...prev,
             [destination.droppableId]: removeCardFrom(prev[destination.droppableId] || [], card.id),
@@ -292,13 +333,13 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
       <div className="flex flex-col gap-2 p-2">
         {/* toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
+          {!isFamily && <button
             onClick={verify}
             disabled={nothingPlaced}
             className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
           >
             <Check className="w-4 h-4" /> Verificar
-          </button>
+          </button>}
           <button onClick={newRound} className="px-3 py-2 rounded-lg border border-slate-300 bg-white font-bold text-sm flex items-center gap-1.5 shadow-sm">
             <RefreshCw className="w-4 h-4" /> Nuevo
           </button>
@@ -308,31 +349,38 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
         </div>
 
         {/* columns */}
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(150px, 1fr))` }}>
+        <div
+          className={isFamily ? 'flex flex-col gap-3' : 'grid gap-2'}
+          style={isFamily ? undefined : { gridTemplateColumns: `repeat(${round.columns.length}, minmax(150px, 1fr))` }}
+        >
           {round.columns.map((col) => (
-            <div key={col.key} className="flex flex-col">
+            <div key={col.key} className={isFamily ? 'flex flex-col sm:flex-row gap-2 items-stretch' : 'flex flex-col'}>
               <ColumnHeader col={col} config={config} isNotPair={isNotPair} targetLetter={targetLetter} />
-              <Droppable droppableId={col.key} direction="vertical">
+              <Droppable droppableId={col.key} direction={isFamily ? 'horizontal' : 'vertical'}>
                 {(prov) => (
                   <div
                     ref={prov.innerRef}
                     {...prov.droppableProps}
                     data-droppable-id={col.key}
-                    className="flex flex-wrap gap-1.5 justify-center content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[200px]"
+                    className={isFamily
+                      ? `flex-1 flex flex-wrap gap-1.5 justify-start content-start p-2 rounded-xl border-2 border-dashed min-h-[140px] ${col.positive ? 'bg-green-50/70 border-green-300' : 'bg-rose-50/70 border-rose-300'}`
+                      : 'flex flex-wrap gap-1.5 justify-center content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[200px]'}
                   >
                     {(colCards[col.key] || []).map((card, i) => (
-                      <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
+                      <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id) || (isFamily && bad.has(card.id))}>
                         {(p) => (
-                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-[150px] shrink-0">
+                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className={isFamily ? 'w-[130px] shrink-0' : 'w-[150px] shrink-0'}>
                             <SortCard
                               card={card}
                               tilesOnly={config.tilesOnly}
                               splitCards={config.splitCards}
                               hideWords={config.hideWords}
                               showCaption={config.rowtitle}
+                              imageOnly={config.imageOnly}
+                              audioState={audioState[card.id]}
                               locked={locked.has(card.id)}
                               bad={bad.has(card.id)}
-                              onClick={() => playWordAudio(card.coreRaw, AUDIO_OPTS)}
+                              onClick={() => playCard(card)}
                             />
                           </div>
                         )}
@@ -360,16 +408,18 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                     {(p) => (
-                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-fit shrink-0">
+                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className={isFamily ? 'w-[130px] shrink-0' : 'w-fit shrink-0'}>
                         <SortCard
                           card={card}
                           tilesOnly={config.tilesOnly}
                           splitCards={config.splitCards}
                           hideWords={config.hideWords}
                           showCaption={config.rowtitle}
+                          imageOnly={config.imageOnly}
+                          audioState={audioState[card.id]}
                           locked={locked.has(card.id)}
                           bad={bad.has(card.id)}
-                          onClick={() => playWordAudio(card.coreRaw, AUDIO_OPTS)}
+                          onClick={() => playCard(card)}
                         />
                       </div>
                     )}
@@ -386,6 +436,29 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
 }
 
 function ColumnHeader({ col, config, isNotPair, targetLetter }) {
+  // familyany: thumbs up/down row label + syllable family + listen button.
+  if (col.headerKind === 'family') {
+    const sylls = familySyllablesOf(col, config);
+    const pos = !!col.positive;
+    const Icon = pos ? ThumbsUp : ThumbsDown;
+    return (
+      <div className={`flex sm:flex-col items-center justify-center gap-2 p-2 rounded-xl sm:w-36 shrink-0 ${pos ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'}`}>
+        <Icon className="w-9 h-9" aria-label={pos ? 'Sí tiene' : 'No tiene'} />
+        <div className="flex flex-wrap justify-center gap-1">
+          {sylls.map((s) => (
+            <span key={s} className={`px-1.5 rounded-md bg-white/80 font-bold text-sm ${pos ? '' : 'line-through decoration-2'}`}>{s}</span>
+          ))}
+        </div>
+        <button
+          onClick={() => playColumnInstruction(col, config, isNotPair, targetLetter)}
+          className="w-8 h-8 rounded-full bg-white/80 hover:bg-white flex items-center justify-center shrink-0"
+          title="Escuchar instrucción"
+        >
+          <Volume2 className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
   // image header (manualsort image / syllgroups headerimages) — always shown
   if (col.headerImg) {
     return (

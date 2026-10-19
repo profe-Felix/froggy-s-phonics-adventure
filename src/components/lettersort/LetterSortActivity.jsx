@@ -19,13 +19,16 @@ function needsFullList(config) {
   return !w || w.length === 0;
 }
 
-export default function LetterSortActivity({ config, onRoundComplete }) {
+export default function LetterSortActivity({ config, onRoundComplete, isTeacher = false }) {
   const [imageFiles, setImageFiles] = useState(null);
   const [err, setErr] = useState('');
   const [warn, setWarn] = useState('');
 
   useEffect(() => {
     let cancelled = false;
+    setImageFiles(null);
+    setErr('');
+    setWarn('');
     if (config.mode === 'generate') {
       setImageFiles([]);
       return;
@@ -62,6 +65,11 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
               setImageFiles(found);
               setWarn('');
             } else {
+              if (config.mode === 'familyany') {
+                setImageFiles([]);
+                setErr('No se encontraron las imágenes de esta actividad. Revisa la lista de palabras con tu maestra.');
+                return;
+              }
               // soft fallback: use the whole bucket so the activity still works
               const all = await listAllImagesJpg({ bucket: IMG_BUCKET, prefix: IMG_PREFIX });
               setImageFiles(all);
@@ -130,6 +138,10 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
     );
   }
   if (!round) return <div className="p-6 text-slate-500">Configuración no válida.</div>;
+  if (round.error) return <div role="alert" className="p-6 text-amber-800 bg-amber-50 rounded-lg">
+    {round.error}
+    {isTeacher && round.missingWords?.length > 0 && <p className="mt-2">Sin imagen: {round.missingWords.join(', ')}</p>}
+  </div>;
 
   const view = (() => {
     switch (round?.view) {

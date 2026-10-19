@@ -3,6 +3,7 @@
 // two surfaces stay in sync.
 
 export const FIELDS = {
+  consonant: { label: 'Consonante objetivo', type: 'text', ph: 't → ta, te, ti, to, tu' },
   letters: { label: 'Letras', type: 'text', ph: 'a, b, ch' },
   lettermatch: { label: 'Coincidencia de letra', type: 'select', options: ['initial', 'contains', 'position'] },
   syllables: { label: 'Sílabas', type: 'text', ph: 'ma, pa, sa' },

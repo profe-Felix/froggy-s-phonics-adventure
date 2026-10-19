@@ -20,6 +20,7 @@ import {
   parseGenerateRiddle, parseManualSortAnswers,
 } from './parsers';
 import { headerImageUrl } from './storage';
+import { expandConsonantFamily, buildFamilyAnyRound } from './familyAny.mjs';
 
 export function parseList(raw) {
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -53,9 +54,14 @@ const LABELS = {
 
 export function buildConfig(modeKey, internalMode, v = {}) {
   const mode = internalMode || inferClassicMode(v);
+  const family = mode === 'familyany';
+  const consonant = String(v.consonant ?? 't').trim().toLowerCase().replace(/^\/|\/$/g, '');
   return {
     modeKey,
     mode,
+    consonant,
+    familySyllables: family ? expandConsonantFamily(consonant) : [],
+    imageOnly: family,
     letters: parseList(v.letters),
     syllables: parseList(v.syllables),
     counts: parseCountsParam(v.counts ?? v.syllcount),
@@ -69,7 +75,7 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     headers: parseList(v.headers),
     answers: v.answers || '',
     headertype: v.headertype || 'text',
-    cardtype: v.cardtype || (isClassic(mode) ? 'image' : 'word'),
+    cardtype: family ? 'image' : v.cardtype || (isClassic(mode) ? 'image' : 'word'),
     match: v.match || 'syllable-start',
     lettermatch: v.lettermatch || 'initial',
     layout: v.layout || 'side',
@@ -89,17 +95,17 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     per: Math.max(1, Math.min(8, parseInt(v.per, 10) || 4)),
     syllmatch: v.syllmatch || 'initial',
     syllcmp: v.syllcmp || 'equals',
-    tilesOnly: !!v.tilesonly,
-    hideWords: !!v.hidewords,
-    splitCards: !!v.splitcards,
-    hideTitle: !!v.hidetitle,
+    tilesOnly: family ? false : !!v.tilesonly,
+    hideWords: family ? true : !!v.hidewords,
+    splitCards: family ? false : !!v.splitcards,
+    hideTitle: family ? false : !!v.hidetitle,
     labelStyle: v.emoji ? 'emoji' : 'text',
     lang: 'es',
   };
 }
 
 // modes rendered by ColumnsView (rack -> N labeled groups)
-const COLUMN_MODES = ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress', 'manualsort', 'syllgroups', 'rowalli', 'allisyll', 'rowsyllcols'];
+const COLUMN_MODES = ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress', 'manualsort', 'syllgroups', 'rowalli', 'allisyll', 'rowsyllcols', 'familyany'];
 export function isClassic(mode) { return ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress'].includes(mode); }
 export function isColumnMode(mode) { return COLUMN_MODES.includes(mode); }
 
@@ -431,6 +437,8 @@ export function buildRound(config, imageFiles = []) {
     return { view: 'columns', columns, cards };
   }
 
+  if (mode === 'familyany') return buildFamilyAnyRound(config, files);
+
   if (mode === 'syllgroups') {
     const columns = withHeaderImages(columnsForSyllGroups(groups, titles), headerimages);
     const cards = buildWordCards(words, files, config);
@@ -605,6 +613,7 @@ export function cardWordsForConfig(config) {
     const words = parsed.flatMap((g) => g.words);
     return config.headertype === 'image' ? [...words, ...parsed.map((g) => g.header)] : words;
   }
+  if (m === 'familyany') return config.words;
   if (m === 'syllgroups') return config.words;
   if (m === 'rowalli' || m === 'allisyll') return parseAlliGroups(config.rows).flat();
   if (m === 'rowsyllcols') return config.words;

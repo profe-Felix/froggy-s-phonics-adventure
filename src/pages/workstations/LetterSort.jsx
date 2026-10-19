@@ -20,6 +20,7 @@ const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/lettersort/p
 // presets.json. Selecting one fills the fields (editable) and uses the raw-params
 // path, so it works exactly like a teacher-typed config. Marked with `builtin`.
 const LOCAL_EXAMPLES = {
+  _ex_family_t: { label: 'Familia t · tiene / no tiene, en cualquier parte', mode: 'familyany', consonant: 't', per: 4, builtin: true },
   _ex_letters_vocales: { label: 'Ejemplo · vocales y comunes', letters: 'a,e,i,o,u,m,p,s,t', per: 4, builtin: true },
   _ex_randinit_bms: { label: 'Ejemplo · sonidos b, m, s', mode: 'randinit', pool: 'b,m,s,ch', per: 4, builtin: true },
   _ex_stress_all: { label: 'Ejemplo · aguda, grave, esdrújula', stress: '1,2,3', per: 4, builtin: true },
@@ -187,7 +188,7 @@ export default function LetterSort() {
         )}
       </div>
 
-      <div className="p-3 bg-white border-b">
+      {(isTeacher || modeKey !== 'familyany') && <div className="p-3 bg-white border-b">
         <div className="max-w-4xl mx-auto flex flex-wrap gap-3 items-end">
           <div className="flex flex-col">
             <label className="text-xs font-bold text-gray-600">Tipo de sort</label>
@@ -240,7 +241,7 @@ export default function LetterSort() {
           })}
         </div>
 
-        {showFields && (
+        {showFields && modeKey !== 'familyany' && (
           <div className="max-w-4xl mx-auto mt-2">
             <button
               type="button"
@@ -265,7 +266,7 @@ export default function LetterSort() {
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       <LetterSortActivity config={config} query={query} isTeacher={isTeacher} />
 

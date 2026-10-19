@@ -5,9 +5,29 @@
 // `es/words/` are not used (that folder is empty), so going straight to TTS
 // avoids the 400 existence-checks that fired on every word.
 import { markersToPretty } from './phonics';
-import { playTts, preloadTts } from '@/lib/audio';
+import { playTts, preloadTts, stopAllAudio } from '@/lib/audio';
 
 const elCache = new Map();  // coreRaw -> Audio (for repeat plays)
+
+let familyPlayback = null;
+export function stopFamilyWordAudio() {
+  familyPlayback?.abort();
+  familyPlayback = null;
+  stopAllAudio();
+}
+
+// Listening-only cards request audio on tap, not a class-wide batch of TTS
+// generations at mount. playTts uses the teacher's preferred voice and cache.
+export async function playFamilyWordAudio(coreRaw) {
+  stopFamilyWordAudio();
+  const controller = new AbortController();
+  familyPlayback = controller;
+  const word = markersToPretty(coreRaw);
+  const ok = await playTts(word, 'es', 0.85, '', undefined, { signal: controller.signal });
+  if (controller.signal.aborted) return true;
+  if (!ok) throw new Error('Audio no disponible. Toca para reintentar.');
+  return true;
+}
 
 export async function preloadAudio(cores, _opts) {
   const uniq = Array.from(new Set(cores));
