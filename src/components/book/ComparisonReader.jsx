@@ -10,7 +10,7 @@ import PageMarkOverlay from '@/components/book/PageMarkOverlay';
 // ComparisonReader - reads books sequentially (Book A, then Book B), never
 // side by side. Book-specific questions appear on their actual book page;
 // comparison/extra and general questions follow as their own slides.
-export default function ComparisonReader({ books, questions, onExit, lessonKey }) {
+export default function ComparisonReader({ books, questions, onExit, lessonKey, className }) {
   const safeBooks = useMemo(() => (Array.isArray(books) ? books : []), [books]);
   const safeQuestions = useMemo(() => (Array.isArray(questions) ? questions.filter(Boolean) : []), [questions]);
 
@@ -23,7 +23,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
   const [activeQ, setActiveQ] = useState(0);
   const [barOpen, setBarOpen] = useState(true);
 
-  const { data: knownWords } = useKnownSightWords(lessonKey);
+  const { data: knownWords } = useKnownSightWords(lessonKey, className);
   const safeKnownWords = knownWords instanceof Set ? knownWords : new Set();
 
   const page = pageList[currentPage - 1];

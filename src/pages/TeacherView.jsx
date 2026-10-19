@@ -114,6 +114,7 @@ export default function TeacherView() {
           questions={comparing.questions}
           books={comparing.books}
           lessonKey={comparing.lessonKey}
+          className={activeClass}
           onExit={() => setComparing(null)}
         />
       )}

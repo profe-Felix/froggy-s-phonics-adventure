@@ -1,93 +1,30 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
-import { splitLiteracyList, normalizeSpanish } from '@/lib/literacy/lessonProgression';
-import { compareCurriculumPositions } from '@/lib/literacy/curriculumGraphemes';
-import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
-import { fetchLessons } from '@/lib/lessonsLoader';
+import { knownWordsForReader } from '@/lib/book/knownSightWords.mjs';
 
-// Total curriculum lessons = 9 modules × 15 lessons
-const TOTAL_CURRICULUM_LESSONS = 135;
-
-// Loads all active Lesson records and returns a Set of lowercase-normalized
-// sight words that students should know by the given curriculum position.
-//
-// Sight words are introduced in PHONICS lessons (the daily_lessons on Lesson
-// records), not in reading lessons.  When `className` is provided we look up
-// the class's ClassConfig to get its active phonics position
-// (active_spanish_module / active_spanish_lesson) and use THAT as the target,
-// because phonics is typically further ahead than reading.  If no ClassConfig
-// is found we fall back to the reading lessonKey.
-//
-// If no lessons have literacy_progression.sightWords populated, falls back to
-// a position-based subset of the static SIGHT_WORDS_EASY list.
+// A book's comprehension lesson is not the class's current DF position.
+// Refresh the small class-position record, not all lessons or book pages.
 export function useKnownSightWords(lessonKey, className) {
-  const queryClient = useQueryClient();
-  return useQuery({
-    queryKey: ['known-sight-words', lessonKey, className || null],
+  const configQuery = useQuery({
+    queryKey: ['book-highlight-class-position', className || null],
+    enabled: !!className,
     queryFn: async () => {
-      let target = null;
-
-      // 0. If a class name is given, use the active PHONICS position from ClassConfig
-      if (className) {
-        try {
-          const cfgRes = await base44.entities.ClassConfig.filter({ class_name: className }, { limit: 1 });
-          const cfg = cfgRes.items?.[0];
-          if (cfg && cfg.active_spanish_module && cfg.active_spanish_lesson) {
-            target = {
-              module_number: Number(cfg.active_spanish_module),
-              curriculum_lesson_number: Number(cfg.active_spanish_lesson),
-            };
-          }
-        } catch { /* fall back to lessonKey */ }
-      }
-
-      // 0b. Fall back to the reading lesson key if no phonics position
-      if (!target) {
-        target = parseCurriculumKey(lessonKey);
-      }
-      if (!target) return new Set();
-
-      // 1. Try lesson-based sight words from literacy_progression.
-      // Reuse the shared lessons query cache (same key as LevelPath/LetterGame)
-      // so opening a book reader doesn't fire a separate Lesson entity fetch.
-      const lessons = await queryClient.fetchQuery({
-        queryKey: ['lessons', className || ''],
-        queryFn: fetchLessons,
-        staleTime: 5 * 60 * 1000,
-      });
-      const known = new Set();
-
-      lessons.forEach((lesson) => {
-        const dailyLessons = lesson.daily_lessons || [];
-        const positions = dailyLessons
-          .filter(d => d.active !== false)
-          .map(d => ({
-            module_number: Number(d.module_number) || 0,
-            curriculum_lesson_number: Number(d.curriculum_lesson_number) || 0,
-          }))
-          .filter(p => p.module_number > 0 && p.curriculum_lesson_number > 0)
-          .filter(p => compareCurriculumPositions(p, target) <= 0);
-
-        if (positions.length === 0) return;
-
-        const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
-        sightWords.forEach(w => known.add(normalizeSpanish(w)));
-      });
-
-      // 2. Only use the static progression list as a FALLBACK when no lesson
-      // records have sightWords populated at or before the target position.
-      // The static list's ordering doesn't match the real curriculum, so merging
-      // it on top of actual lesson data introduces words students haven't learned.
-      if (known.size === 0) {
-        const lessonIndex = (target.module_number - 1) * 15 + target.curriculum_lesson_number;
-        const wordCount = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
-        SIGHT_WORDS_EASY.slice(0, wordCount).forEach(w => known.add(normalizeSpanish(w)));
-      }
-
-      return known;
+      const response = await base44.entities.ClassConfig.filter({ class_name: className }, { limit: 1 });
+      const rows = Array.isArray(response) ? response : response?.items;
+      if (!Array.isArray(rows)) throw new Error('The class sight-word position could not be read.');
+      return rows[0] || null;
     },
-    staleTime: 5 * 60 * 1000,
-    enabled: !!(lessonKey || className),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
+  const data = useMemo(() => {
+    // Do not flash an older book-based word list while class settings load.
+    // During a failed refresh React Query retains the last successful setting.
+    if (className && configQuery.data === undefined) return undefined;
+    return knownWordsForReader(lessonKey, configQuery.data);
+  }, [lessonKey, className, configQuery.data]);
+  return { ...configQuery, data };
 }
