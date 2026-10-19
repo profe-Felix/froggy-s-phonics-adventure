@@ -79,3 +79,12 @@ test('server mapping honors the saved day and only accepts an actual notebook st
   const client = fs.readFileSync(new URL('../src/lib/external-notebook/client.js', import.meta.url), 'utf8');
   assert.match(client, /context\.kind === "lesson" \? \{ stepId: context\.stepId \}/);
 });
+test('release and relock retain the current teacher model; changing step and End still clear it', () => {
+  const host = fs.readFileSync(new URL('../src/pages/LiveLesson.jsx', import.meta.url), 'utf8');
+  const phaseControls = host.slice(host.indexOf('const setPhase ='), host.indexOf('function leaveEndedSession'));
+  assert.doesNotMatch(phaseControls, /clearBroadcast|broadcast_state:\s*\{\}/);
+  const stepControls = host.slice(host.indexOf('const advance ='), host.indexOf('const setPhase ='));
+  assert.match(stepControls, /clearBroadcast\(false\)/);
+  const ending = host.slice(host.indexOf('const endSession ='), host.indexOf('// ---------- SETUP SCREEN'));
+  assert.match(ending, /active: false, broadcast_state: \{\}/);
+});

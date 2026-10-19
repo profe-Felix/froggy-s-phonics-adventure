@@ -667,19 +667,10 @@ export default function LiveLesson() {
   };
 
   const setPhase = (nextPhase) => {
-    if (nextPhase === 'try') {
-      clearBroadcast(false);
-
-      updateSession({
-        phase: 'try',
-        broadcast_state: {},
-      });
-
-      return;
-    }
-
+    // Releasing students does not reset the teacher's model. Keep its latest
+    // snapshot available when students return to Watch on the same step.
     updateSession({
-      phase: 'watch',
+      phase: nextPhase === 'try' ? 'try' : 'watch',
     });
   };
 
@@ -687,11 +678,8 @@ export default function LiveLesson() {
     nextMode
   ) => {
     if (nextMode === 'lesson') {
-      clearBroadcast(false);
-
       updateSession({
         release_mode: 'lesson',
-        broadcast_state: {},
       });
 
       return;
