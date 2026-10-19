@@ -295,7 +295,8 @@ export default function DigitalNotebook() {
         className={studentInfo.className}
         directAssignmentName={studentInfo.directAssignment || null}
         directAssignmentId={urlAssignmentId}
-        directPage={studentInfo.directPage || null}
+        directPage={urlClass === studentInfo.className && urlNumber === studentInfo.number
+          ? urlPage : studentInfo.directPage || null}
         liveAssessmentId={studentInfo.liveAssessmentId || null}
         onBack={() => {
           if (urlFromLive) {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parseHelpLetters, normalizeLetterHelp, letterHelpForPage } from '../base44/shared/notebookLetterHelp.mjs';
+import { letterHelpStrokeColor, LETTER_HELP_STROKE_COLORS } from '../src/lib/notebookLetterHelp.mjs';
 
 const rule = { id: 'help-test', pageStart: 2, pageEnd: 4, letters: ['d', 't', 'p'], x: .82, y: .11, speed: .5, enabled: true };
 const book = { id: 'book-test', pageCount: 8, width: 1000, height: 1300 };
@@ -29,14 +30,25 @@ test('help reuses the original people/fence guide and authored writing-line posi
   assert.ok(!cached.includes('base44.entities'));
 });
 
-test('contrasting pencil tip follows the real spline arc and active ink remains distinct from completed ink', async () => {
+test('contrasting pencil tip follows the real spline arc and stroke colors remain stable', async () => {
   const replay = await source('src/components/notebook/LetterHelpReplay.jsx');
   assert.match(replay, /path\.getPointAtLength\(length \* progress\)/);
   assert.match(replay, /path\.getTotalLength\(\)/);
-  assert.match(replay, /i === activeIndex \? '#2563eb' : '#0f766e'/);
+  assert.match(replay, /const strokeColor = letterHelpStrokeColor\(i\)/);
+  assert.match(replay, /stroke=\{strokeColor\}/);
+  assert.match(replay, /data-testid="letter-stroke-colors"/);
   assert.match(replay, /data-testid="letter-pencil-tip"/);
   assert.match(replay, /fill="#f97316"/);
   assert.match(replay, /fill="#ffffff" stroke="#0f172a"/);
+});
+
+test('separate formation strokes keep blue, green, red order through playback and replay', () => {
+  assert.deepEqual([0, 1, 2].map(letterHelpStrokeColor), ['#2563eb', '#16a34a', '#dc2626']);
+  assert.equal(new Set(LETTER_HELP_STROKE_COLORS).size, LETTER_HELP_STROKE_COLORS.length);
+  assert.ok(!LETTER_HELP_STROKE_COLORS.includes('#f97316'), 'orange remains the pencil tip, not ink');
+  assert.equal(letterHelpStrokeColor(0), letterHelpStrokeColor(0));
+  assert.throws(() => letterHelpStrokeColor(-1));
+  assert.throws(() => letterHelpStrokeColor(1.5));
 });
 
 test('letter help targets preserve accents, lowercase by default, uppercase/digraph identity', () => {

@@ -120,7 +120,8 @@ export function createNotebookStudentControls({
     );
 
   let classroom = null;
-  let ownPage = null;
+  let ownPage = kind === "assignment" && allowed(initialContext.page)
+    ? initialContext.page : null;
   let seenReady = false;
   let error = null;
 

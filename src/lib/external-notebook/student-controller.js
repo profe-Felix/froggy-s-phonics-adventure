@@ -465,6 +465,13 @@ export async function createNotebookStudentController({
         await drain();
         const check = policy.getState({ context: next });
         if (check.needsNewSession) throw new Error("A new scoped session is needed. Existing work remains open.");
+        // Only explicit independent-assignment page changes are link navigation.
+        // drain() above finishes the old page's gesture and acknowledged outbox;
+        // choosePage() still enforces signed pages and current teacher controls.
+        if (next.kind === "assignment" && next.page !== context.page &&
+            Number.isSafeInteger(next.page) && next.page > 0) {
+          policy.choosePage(next.page);
+        }
         context = next; error = ""; return true;
       }, false, recoveryExitOnly);
     },

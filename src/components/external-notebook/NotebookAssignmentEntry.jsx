@@ -12,7 +12,7 @@ import { notebookLibrary, resolveNotebookAssignment } from "@/lib/notebook-libra
 // replaced; the old component is never mounted (or downloading a PDF) first.
 export default function NotebookAssignmentEntry({ LegacyView, ...props }) {
   const { className, studentNumber, directAssignmentId, directAssignmentName,
-    assignmentOverride, onBack, teacherMode, directPage = 1, registerSave, onComplete } = props;
+    assignmentOverride, onBack, teacherMode, directPage = null, registerSave, onComplete } = props;
   const [selected, setSelected] = useState(assignmentOverride || null);
   const [archive, setArchive] = useState(false);
   const [leaveError, setLeaveError] = useState("");
@@ -81,7 +81,12 @@ export default function NotebookAssignmentEntry({ LegacyView, ...props }) {
     } });
     const selection = props.stepConfig ? lessonStepPages({
       ...props.stepConfig, assignmentPageCount: assignment.pdf_page_count,
-    }) : { page: Math.max(1, Number(directPage) || 1), allowedPages: props.pageLock || null };
+    }) : {
+      // Missing page links keep the existing resume behavior. An explicit
+      // one-based page is navigation intent, never additional page authority.
+      page: directPage == null || directPage === '' ? undefined : Math.max(1, Number(directPage) || 1),
+      allowedPages: props.pageLock || null,
+    };
     return {
       role: "student", kind: "assignment", active: true, sourceId: assignment.id,
       assignmentId: assignment.id, className, schoolYear: student.school_year,

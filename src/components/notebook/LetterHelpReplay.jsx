@@ -5,6 +5,7 @@ import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import { CachedGuideKeyVisual } from '@/components/tracing/GuideKeyVisual';
+import { letterHelpStrokeColor } from '@/lib/notebookLetterHelp.mjs';
 
 // TEACHER EDITOR ONLY. Session cache of teacher waypoint overrides. Same merge rule as
 // useMergedWaypoints, but fetched at most once per page session so replays,
@@ -189,15 +190,16 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
           : <circle key={`g${i}`} cx={s.pts[0].x} cy={s.pts[0].y} r={7} fill="hsl(30 20% 82%)" />)}
         {glyph.strokes.map((s, i) => {
           const p = Math.max(0, Math.min(1, (time - s.start) / s.dur));
+          const strokeColor = letterHelpStrokeColor(i);
           const startPt = s.pts[0];
           const isNext = time < s.start && (i === 0 || time >= glyph.strokes[i - 1].start + glyph.strokes[i - 1].dur);
           return (
             <g key={`i${i}`}>
               {p > 0 && (s.d
-                ? <path ref={node => { pathRefs.current[i] = node; }} d={s.d} fill="none" stroke={i === activeIndex ? '#2563eb' : '#0f766e'} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - p} />
-                : <circle cx={startPt.x} cy={startPt.y} r={8} fill={i === activeIndex ? '#2563eb' : '#0f766e'} opacity={p} />)}
+                ? <path ref={node => { pathRefs.current[i] = node; }} d={s.d} fill="none" stroke={strokeColor} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - p} />
+                : <circle cx={startPt.x} cy={startPt.y} r={8} fill={strokeColor} opacity={p} />)}
               {(isNext || (p > 0 && p < 1)) && <g>
-                <circle cx={startPt.x} cy={startPt.y} r={15} fill="#0f766e" />
+                <circle cx={startPt.x} cy={startPt.y} r={15} fill={strokeColor} />
                 <text x={startPt.x} y={startPt.y + 6} textAnchor="middle" fontSize={17} fontWeight={800} fill="hsl(44 70% 97%)">{i + 1}</text>
               </g>}
             </g>
@@ -209,6 +211,10 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
         </g>
         </g>
       </svg>
+      <div className="flex flex-wrap gap-1" aria-label="Colores de los trazos" data-testid="letter-stroke-colors">
+        {glyph.strokes.map((_, i) => <span key={i} className="rounded-full px-2 py-1 text-xs font-bold text-white"
+          style={{ background: letterHelpStrokeColor(i) }}>Trazo {i + 1}</span>)}
+      </div>
       <input type="range" min={0} max={1000} value={Math.round(pct * 1000)} aria-label="Posición de la animación" data-testid="input-letter-scrub"
         onChange={e => { setPlaying(false); seek(Number(e.target.value) / 1000 * total); }}
         className="w-full accent-[hsl(172_70%_28%)] h-8" />
