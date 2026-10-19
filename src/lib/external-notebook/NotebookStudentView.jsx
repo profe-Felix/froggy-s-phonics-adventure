@@ -42,13 +42,13 @@ const CSS = `
 .nbs{
   display:flex;
   flex-direction:column;
-  gap:8px;
+  gap:4px;
   height:min(86dvh,960px);
   min-height:420px;
   overflow:hidden;
-  padding:8px;
+  padding:4px;
   box-sizing:border-box;
-  border-radius:18px;
+  border-radius:14px;
   background:hsl(192 30% 90%);
   font-family:ui-rounded,"Nunito","Segoe UI",system-ui,sans-serif;
   color:hsl(200 30% 18%);
@@ -57,12 +57,12 @@ const CSS = `
   display:flex;
   flex-wrap:wrap;
   align-items:center;
-  gap:6px;
+  gap:4px;
   flex-shrink:0;
 }
 .nbs-pill{
   border-radius:999px;
-  padding:4px 10px;
+  padding:2px 8px;
   font-size:12px;
   font-weight:700;
   background:hsl(48 60% 98%);
@@ -99,7 +99,7 @@ const CSS = `
 .nbs-row{
   display:flex;
   flex-direction:column;
-  gap:8px;
+  gap:4px;
   flex:1 1 auto;
   min-height:0;
   min-width:0;
@@ -113,7 +113,7 @@ const CSS = `
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:8px;
+  gap:4px;
   flex:1 1 auto;
   min-height:0;
   min-width:0;
@@ -122,11 +122,20 @@ const CSS = `
 .nbs-nav{
   display:flex;
   align-items:center;
-  gap:6px;
+  gap:2px;
   flex-shrink:0;
+  height:44px;
+  max-width:100%;
+  box-sizing:border-box;
   border-radius:999px;
   background:hsl(48 60% 98%);
-  padding:4px 8px;
+  padding:0 2px;
+}
+.nbs-nav .nbs-btn{
+  min-width:44px;
+  min-height:44px;
+  padding:0;
+  border-radius:999px;
 }
 .nbs-btn{
   display:inline-flex;
@@ -162,10 +171,11 @@ const CSS = `
   background:hsl(48 60% 98%);
 }
 .nbs-page{
-  min-width:132px;
+  padding:0 6px;
   text-align:center;
   font-size:14px;
   font-weight:700;
+  white-space:nowrap;
 }
 .nbs-sub{
   font-size:12px;
@@ -799,19 +809,20 @@ export function NotebookStudentView({
             </button>
           </nav>
 
-          <p
-            className="nbs-sub"
-            data-testid="text-requested-page"
-          >
-            {mismatch && requested != null
-              ? (
-                  `Opening page ${requested} - ` +
-                  `still showing page ${page ?? "-"}.`
-                )
-              : requested == null && controls
-                ? "No assigned page right now."
-                : "\u00a0"}
-          </p>
+          {((mismatch && requested != null) ||
+            (requested == null && controls)) && (
+            <p
+              className="nbs-sub"
+              data-testid="text-requested-page"
+            >
+              {mismatch && requested != null
+                ? (
+                    `Opening page ${requested} - ` +
+                    `still showing page ${page ?? "-"}.`
+                  )
+                : "No assigned page right now."}
+            </p>
+          )}
         </main>
       </div>
     </div>

@@ -87,9 +87,9 @@ const CSS = `
   display:flex;
   flex-wrap:wrap;
   align-items:center;
-  gap:8px;
-  padding:8px;
-  border-radius:16px;
+  gap:4px;
+  padding:4px;
+  border-radius:12px;
   background:var(--nbt-card);
   box-shadow:0 1px 0 var(--nbt-line),0 2px 10px hsl(200 30% 20%/.08);
   max-height:28dvh;
@@ -101,8 +101,10 @@ const CSS = `
   .nbt-bar{
     flex-direction:column;
     flex-wrap:nowrap;
-    width:96px;
+    width:52px;
+    box-sizing:border-box;
     max-height:100%;
+    scrollbar-width:none;
     align-self:stretch;
   }
 }
@@ -112,11 +114,13 @@ const CSS = `
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:2px;
-  width:56px;
-  height:56px;
+  gap:1px;
+  width:44px;
+  height:44px;
+  padding:0;
+  box-sizing:border-box;
   border:0;
-  border-radius:12px;
+  border-radius:10px;
   background:transparent;
   color:inherit;
   cursor:pointer;
@@ -151,9 +155,10 @@ const CSS = `
   border:2px solid var(--nbt-line);
 }
 .nbt-lbl{
-  font-size:10px;
+  font-size:9px;
   font-weight:700;
   line-height:1;
+  white-space:nowrap;
 }
 .nbt-sep{
   height:1px;
@@ -622,8 +627,8 @@ export function NotebookToolbar({
       >
         <span
           style={{
-            width: 28,
-            height: 28,
+            width: 22,
+            height: 22,
             borderRadius: "50%",
             border: "2px solid var(--nbt-line)",
             background: color,

@@ -74,7 +74,7 @@ const CSS = `
   display:flex;
   flex:1 1 auto;
   flex-direction:column;
-  gap:8px;
+  gap:2px;
   min-height:0;
   min-width:0;
   width:100%;
@@ -84,7 +84,8 @@ const CSS = `
 .nbv-hint{
   flex-shrink:0;
   text-align:center;
-  font-size:12px;
+  font-size:11px;
+  line-height:1.3;
   color:hsl(200 15% 42%);
 }
 .nbv-scroll{
