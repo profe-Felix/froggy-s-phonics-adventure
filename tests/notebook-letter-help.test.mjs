@@ -8,6 +8,37 @@ const book = { id: 'book-test', pageCount: 8, width: 1000, height: 1300 };
 const source = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const fresh = suffix => import(`../base44/shared/notebookLetterHelp.mjs?case=${suffix}`);
 
+test('help reuses the original people/fence guide and authored writing-line positions without warping letters', async () => {
+  const [replay, original, guide] = await Promise.all([
+    source('src/components/notebook/LetterHelpReplay.jsx'),
+    source('src/components/game/LetterTracingCanvas.jsx'),
+    source('src/components/tracing/GuideKeyVisual.jsx'),
+  ]);
+  for (const y of ['.10', '.367', '.633', '.90']) assert.ok(replay.includes(`y: ${y},`));
+  for (const y of ['0.10', '0.367', '0.633', '0.90']) assert.ok(original.includes(`${y} * CANVAS_H`));
+  assert.match(replay, /y: p\.y \* CH/);
+  assert.match(replay, /<CachedGuideKeyVisual/);
+  assert.match(replay, /const GUIDE_W = 260/);
+  assert.match(original, /const GUIDE_W = 260/);
+  assert.ok(!replay.includes('y: .42,'));
+  assert.match(guide, /<WalkingFigure/);
+  assert.match(guide, /href=\{FENCE_URL\}/);
+  const cached = guide.slice(guide.indexOf('export function CachedGuideKeyVisual'), guide.indexOf('function GuideKeyDrawing'));
+  assert.match(cached, /<GuideKeyDrawing/);
+  assert.ok(!cached.includes('useTracingGuideSettings'));
+  assert.ok(!cached.includes('base44.entities'));
+});
+
+test('contrasting pencil tip follows the real spline arc and active ink remains distinct from completed ink', async () => {
+  const replay = await source('src/components/notebook/LetterHelpReplay.jsx');
+  assert.match(replay, /path\.getPointAtLength\(length \* progress\)/);
+  assert.match(replay, /path\.getTotalLength\(\)/);
+  assert.match(replay, /i === activeIndex \? '#2563eb' : '#0f766e'/);
+  assert.match(replay, /data-testid="letter-pencil-tip"/);
+  assert.match(replay, /fill="#f97316"/);
+  assert.match(replay, /fill="#ffffff" stroke="#0f172a"/);
+});
+
 test('letter help targets preserve accents, lowercase by default, uppercase/digraph identity', () => {
   assert.deepEqual(parseHelpLetters('D, t, P, Ñ, ch, D'), ['d', 't', 'p', 'ñ', 'ch']);
   assert.deepEqual(parseHelpLetters('á é í ó ú ü'), ['á', 'é', 'í', 'ó', 'ú', 'ü']);

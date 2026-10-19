@@ -18,7 +18,7 @@
  * Renders an SVG <g> group — place it inside an <svg> element.
  */
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import WalkingFigure from './WalkingFigure';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 
@@ -39,12 +39,28 @@ const R_EMOJI_SPACING_F = 0.438; // emojiSpacing / capFSize
 const R_FENCE_GAP_F = 0.340;   // fenceGap / capFSize
 const R_FENCE_WIDTH_H = 0.487; // fenceWidth / grassH (shows ~3 planks)
 
-export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
+export default function GuideKeyVisual(props) {
+  const { settings } = useTracingGuideSettings();
+  return <GuideKeyDrawing {...props} saved={settings} />;
+}
+
+// Read-only demonstrations reuse the exact guide artwork without mounting the
+// settings editor's database-loading/record-creation hook on every student iPad.
+export function CachedGuideKeyVisual(props) {
+  const [saved] = useState(() => {
+    const defaults = { emojiHeightFactor: 0.96, emojiFeetFactor: 0.16 };
+    try { return { ...defaults, ...JSON.parse(localStorage.getItem('tracingGuideSettings') || '{}') }; }
+    catch { return defaults; }
+  });
+  return <GuideKeyDrawing {...props} saved={saved} />;
+}
+
+function GuideKeyDrawing({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
   emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth,
   fenceWidth, fenceOffset, emojiX, fenceGap,
   // Ratio-based overrides (proportional — scale across canvas sizes).
   // When provided, these replace the saved/default auto-scaling ratios.
-  emojiSpacingRatio, emojiXRatio, fenceGapRatio, fenceWidthRatio, fenceOffsetRatio }) {
+  emojiSpacingRatio, emojiXRatio, fenceGapRatio, fenceWidthRatio, fenceOffsetRatio, saved }) {
 
   const clipId = useId();
 
@@ -52,8 +68,6 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   // page). Saved values act as defaults; explicit props still override, and
   // built-in ratios are the final fallback. This makes tuner edits universal
   // across every canvas that renders this guide.
-  const { settings: saved } = useTracingGuideSettings();
-
   const effEmojiHeightFactor = emojiHeightFactor ?? saved.emojiHeightFactor ?? 0.84;
   const effEmojiFeetFactor = emojiFeetFactor ?? saved.emojiFeetFactor ?? 0.26;
 

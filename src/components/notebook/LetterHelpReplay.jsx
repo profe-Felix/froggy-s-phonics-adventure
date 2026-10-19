@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
 import { splinePathD } from '@/components/tracing/strokeMath';
+import { CachedGuideKeyVisual } from '@/components/tracing/GuideKeyVisual';
 
 // TEACHER EDITOR ONLY. Session cache of teacher waypoint overrides. Same merge rule as
 // useMergedWaypoints, but fetched at most once per page session so replays,
@@ -60,6 +61,14 @@ export const displayLetter = (letter, upper) => {
 };
 
 const CW = 300, CH = 375, GAP = 0.08;
+// Same authored coordinate system and equal-zone lines as LetterTracingCanvas.
+const GUIDE_W = 260;
+const WRITING_LINES = [
+  { y: .10, color: '#4a90e2', width: 2.5 },
+  { y: .367, color: '#000000', width: 2, dash: '8 6' },
+  { y: .633, color: '#16a34a', width: 2.5 },
+  { y: .90, color: '#8d6e63', width: 2.5, dash: '6 6' },
+];
 function strokesFor(ch, wp) {
   const own = wp[ch];
   if (own?.strokes?.length) return own.strokes;
@@ -112,6 +121,29 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const total = glyph?.total || 1;
+  const pathRefs = useRef([]);
+  const pathLengths = useRef(new WeakMap());
+  const tipRef = useRef(null);
+  const activeIndex = glyph?.strokes?.findIndex(s => time >= s.start && time < s.start + s.dur) ?? -1;
+
+  // Follow the rendered spline's arc length, not a straight-line interpolation
+  // between waypoints: the tip must stay on curved and retraced parts of a/d/p.
+  useLayoutEffect(() => {
+    const tip = tipRef.current;
+    if (!tip) return;
+    const stroke = glyph?.strokes?.[activeIndex];
+    if (!stroke) { tip.setAttribute('visibility', 'hidden'); return; }
+    const progress = Math.max(0, Math.min(1, (time - stroke.start) / stroke.dur));
+    let point = stroke.pts[0];
+    const path = pathRefs.current[activeIndex];
+    if (stroke.d && path) {
+      let length = pathLengths.current.get(path);
+      if (length === undefined) { length = path.getTotalLength(); pathLengths.current.set(path, length); }
+      point = path.getPointAtLength(length * progress);
+    }
+    tip.setAttribute('transform', `translate(${point.x} ${point.y})`);
+    tip.setAttribute('visibility', 'visible');
+  }, [time, glyph, activeIndex]);
 
   useEffect(() => { seek(0); setPlaying(true); }, [text, waypoints]); // eslint-disable-line
   useEffect(() => {
@@ -138,14 +170,20 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
     );
   }
   const pct = time / total;
+  const letterAreaWidth = Math.max(CW, glyph.width + 60);
+  const canvasWidth = GUIDE_W + letterAreaWidth;
+  const letterX = GUIDE_W + (letterAreaWidth - glyph.width) / 2;
   const restart = () => { seek(0); setPlaying(true); };
   const btn = 'h-11 min-w-11 px-3 rounded-full font-bold flex items-center justify-center gap-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2';
   return (
     <div className="flex flex-col gap-3">
-      <svg viewBox={`-30 0 ${glyph.width + 60} ${CH}`} className={`w-full ${compact ? 'max-h-48' : 'max-h-[42vh]'} rounded-2xl`} style={{ background: 'hsl(44 70% 97%)' }}
+      <svg viewBox={`0 0 ${canvasWidth} ${CH}`} className={`w-full ${compact ? 'max-h-48' : 'max-h-[42vh]'} rounded-2xl`} style={{ background: '#ffffff' }}
         role="img" aria-label={`Cómo se escribe ${text}`} data-testid="svg-letter-replay">
-        {[.10, .42, .633, .90].map((y, i) => <line key={y} x1={-30} x2={glyph.width + 30} y1={y * CH} y2={y * CH}
-          stroke={i === 1 || i === 3 ? 'hsl(200 50% 75%)' : 'hsl(12 60% 75%)'} strokeWidth={i === 2 ? 3 : 2} strokeDasharray={i === 1 || i === 3 ? '8 8' : undefined} />)}
+        <CachedGuideKeyVisual skyY={.10 * CH} fenceY={.367 * CH} grassY={.633 * CH} dirtY={.90 * CH} width={GUIDE_W} />
+        {WRITING_LINES.map(line => <line key={line.y} x1={0} x2={canvasWidth} y1={line.y * CH} y2={line.y * CH}
+          stroke={line.color} strokeWidth={line.width} strokeDasharray={line.dash} opacity={line.y === .90 ? .85 : .8}
+          vectorEffect="non-scaling-stroke" data-guide-line={line.y} />)}
+        <g transform={`translate(${letterX} 0)`}>
         {glyph.strokes.map((s, i) => s.d
           ? <path key={`g${i}`} d={s.d} fill="none" stroke="hsl(30 20% 82%)" strokeWidth={14} strokeLinecap="round" strokeLinejoin="round" />
           : <circle key={`g${i}`} cx={s.pts[0].x} cy={s.pts[0].y} r={7} fill="hsl(30 20% 82%)" />)}
@@ -156,15 +194,20 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
           return (
             <g key={`i${i}`}>
               {p > 0 && (s.d
-                ? <path d={s.d} fill="none" stroke="hsl(172 70% 28%)" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - p} />
-                : <circle cx={startPt.x} cy={startPt.y} r={8} fill="hsl(172 70% 28%)" opacity={p} />)}
+                ? <path ref={node => { pathRefs.current[i] = node; }} d={s.d} fill="none" stroke={i === activeIndex ? '#2563eb' : '#0f766e'} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1" strokeDashoffset={1 - p} />
+                : <circle cx={startPt.x} cy={startPt.y} r={8} fill={i === activeIndex ? '#2563eb' : '#0f766e'} opacity={p} />)}
               {(isNext || (p > 0 && p < 1)) && <g>
-                <circle cx={startPt.x} cy={startPt.y} r={15} fill="hsl(14 85% 55%)" />
+                <circle cx={startPt.x} cy={startPt.y} r={15} fill="#0f766e" />
                 <text x={startPt.x} y={startPt.y + 6} textAnchor="middle" fontSize={17} fontWeight={800} fill="hsl(44 70% 97%)">{i + 1}</text>
               </g>}
             </g>
           );
         })}
+        <g ref={tipRef} visibility="hidden" pointerEvents="none" aria-hidden="true" data-testid="letter-pencil-tip">
+          <circle r={11} fill="#ffffff" stroke="#0f172a" strokeWidth={1.5} />
+          <circle r={7} fill="#f97316" />
+        </g>
+        </g>
       </svg>
       <input type="range" min={0} max={1000} value={Math.round(pct * 1000)} aria-label="Posición de la animación" data-testid="input-letter-scrub"
         onChange={e => { setPlaying(false); seek(Number(e.target.value) / 1000 * total); }}
