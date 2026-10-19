@@ -113,7 +113,7 @@ export async function preloadSilenceStart(url) {
 // browser's speech synthesizer if the backend is unreachable.
 const ttsCache = new Map();
 
-export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnded, { signal, onError } = {}) {
+export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnded, { signal, onError, onStart } = {}) {
   if (!text || signal?.aborted) return false;
   // When no explicit voice is passed, use the teacher's configured default
   // (TtsVoiceSetting entity → es-US-Wavenet-A) so every "Escuchar" button
@@ -140,6 +140,9 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnde
       const abort = () => a.pause();
       const cleanup = () => signal?.removeEventListener('abort', abort);
       signal?.addEventListener('abort', abort, { once: true });
+      a.addEventListener('playing', () => {
+        if (!signal?.aborted) onStart?.();
+      }, { once: true });
       a.addEventListener('ended', () => {
         cleanup();
         if (!signal?.aborted) onEnded?.();
@@ -165,6 +168,9 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnde
     const abort = () => window.speechSynthesis.cancel();
     const cleanup = () => signal?.removeEventListener('abort', abort);
     signal?.addEventListener('abort', abort, { once: true });
+    u.addEventListener('start', () => {
+      if (!signal?.aborted) onStart?.();
+    }, { once: true });
     u.addEventListener('end', () => {
       cleanup();
       if (!signal?.aborted) onEnded?.();

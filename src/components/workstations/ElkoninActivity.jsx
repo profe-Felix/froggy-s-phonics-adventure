@@ -6,7 +6,8 @@ import { playTts } from '@/lib/audio';
 import { createElkoninPromptQueue } from '@/lib/literacy/elkoninPromptQueue.mjs';
 
 // Student activity: Elkonin boxes. Each syllable has a counter; tap to hear it.
-// When every counter has actually finished playing, the reveal button
+// A counter turns green when its audio starts. Once every counter has started,
+// the reveal button
 // uncovers the picture and plays the whole word.
 export default function ElkoninActivity({ words, media, index: controlledIndex, onIndexChange }) {
   const controlled = controlledIndex !== undefined;
@@ -91,10 +92,13 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
     const settle = value => { clearTimeout(timeout); resolve(value); };
     const timeout = setTimeout(() => { failed(); owner.abort(); }, 45000);
     owner.signal.addEventListener('abort', () => settle(false), { once: true });
+    const markStarted = () => {
+      if (owner.signal.aborted || promptRef.current !== owner) return;
+      if (i !== null) setHeard(p => { const n = [...p]; n[i] = true; return n; });
+    };
     const finished = () => {
       if (owner.signal.aborted || promptRef.current !== owner) return;
       setSpeaking(null);
-      if (i !== null) setHeard(p => { const n = [...p]; n[i] = true; return n; });
       settle(true);
     };
     const text = i === null ? markersToPretty(word) : syllables[i];
@@ -110,12 +114,13 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
     if (owner.signal.aborted) return;
     setSpeaking(i === null ? 'word' : i);
     const recording = i === null ? wordAudioRef.current : syllAudioRefs.current[i];
-    const fallback = () => playTts(text, 'es', 0.85, '', finished, { signal: owner.signal, onError: failed });
+     const fallback = () => playTts(text, 'es', 0.85, '', finished, { signal: owner.signal, onError: failed, onStart: markStarted });
     let started = false;
     try {
       if (recording) {
         let recordingStarted = false;
         recording.currentTime = 0;
+        recording.onplaying = markStarted;
         recording.onended = finished;
         recording.onerror = () => {
           if (recordingStarted && !owner.signal.aborted) void fallback().then(ok => { if (!ok) failed(); });
@@ -213,13 +218,12 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
                 title={`Escuchar sílaba ${i + 1}`}
                 aria-label={`Escuchar sílaba ${i + 1}`}
                 aria-busy={speaking === i || pendingCounters.includes(i)}
-                className="w-11 h-11 rounded-full border-2 border-gray-900 transition active:scale-95"
+                className="w-11 h-11 rounded-full border-2 border-gray-900 transition-transform active:scale-95"
                 style={{
-                  background: !hasAudio[i] ? '#d1d5db' : (heard[i] ? '#10b981' : '#111827'),
+                  background: heard[i] ? '#10b981' : (!hasAudio[i] ? '#d1d5db' : '#111827'),
                   cursor: 'pointer',
                   opacity: 1,
-                  borderColor: pendingCounters.includes(i) ? '#f59e0b' : (!hasAudio[i] ? '#9ca3af' : (heard[i] ? '#0f9a72' : '#111827')),
-                  boxShadow: pendingCounters.includes(i) ? '0 0 0 3px #fef3c7' : 'none',
+                  borderColor: heard[i] ? '#0f9a72' : (!hasAudio[i] ? '#9ca3af' : '#111827'),
                 }}
               />
             </div>

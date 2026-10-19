@@ -109,7 +109,7 @@ async function counterHarness(lookup) {
   const started = [];
   const recordings = [0, 1].map(i => ({
     currentTime: 0, pause() {},
-    async play() { started.push(i); },
+    async play() { started.push(i); this.onplaying?.(); },
   }));
   const context = vm.createContext({
     promptRef: { current: null }, queueRef: { current: createElkoninPromptQueue() },
@@ -124,19 +124,21 @@ async function counterHarness(lookup) {
   const raw = await source('components/workstations/ElkoninActivity.jsx');
   vm.runInContext(raw.slice(raw.indexOf('  const runPrompt ='), raw.indexOf('  const onReveal ='))
     + '\nglobalThis.tap = playPrompt;', context);
-  return { tap: context.tap, recordings, started, heard: () => Array.from(heard), pending: () => Array.from(pending) };
+  return { tap: context.tap, recordings, started, heard: () => Array.from(heard), pending: () => Array.from(pending),
+    cancel: () => { context.queueRef.current.stop(); context.promptRef.current?.abort(); } };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-test('actual counter handlers turn both counters green after two rapid taps', async () => {
+test('rapid taps turn each counter green at its playback start, not its ending', async () => {
   const h = await counterHarness();
   h.tap(0); h.tap(1); h.tap(0);
   assert.deepEqual(h.pending(), [0, 1]);
   await tick();
   assert.deepEqual(h.started, [0]);
+  assert.deepEqual(h.heard(), [true, false]);
   h.recordings[0].onended();
   await tick();
-  assert.deepEqual(h.heard(), [true, false]);
+  assert.deepEqual(h.heard(), [true, true]);
   assert.deepEqual(h.started, [0, 1]);
   h.recordings[1].onended();
   await tick();
@@ -150,9 +152,11 @@ test('a counter tapped before its recording lookup finishes is retained', async 
   h.tap(0);
   await tick();
   assert.deepEqual(h.started, []);
+  assert.deepEqual(h.heard(), [false, false]);
   assert.deepEqual(h.pending(), [0]);
   ready(); await tick();
   assert.deepEqual(h.started, [0]);
+  assert.deepEqual(h.heard(), [true, false]);
   h.recordings[0].onended();
   await tick();
   assert.deepEqual(h.heard(), [true, false]);
@@ -179,7 +183,7 @@ async function audioHarness({ rejectAudio = false, cloudUrl = 'https://example.i
   return { tts: context.tts, requests, audios, spoken };
 }
 
-test('TTS uses the configured voice and only signals hearing after playback ends', async () => {
+test('TTS uses the configured voice and keeps completion separate from playback start', async () => {
   const h = await audioHarness();
   let heard = false;
   assert.equal(await h.tts('toro', 'es', .85, '', () => { heard = true; }), true);
@@ -188,6 +192,47 @@ test('TTS uses the configured voice and only signals hearing after playback ends
   assert.equal(heard, false);
   h.audios[0].dispatchEvent(new Event('ended'));
   assert.equal(heard, true);
+});
+
+test('cloud TTS start fires only when audio actually plays, once, before completion', async () => {
+  const h = await audioHarness();
+  let starts = 0, ends = 0;
+  await h.tts('to', 'es', .85, '', () => ends++, { onStart: () => starts++ });
+  assert.equal(starts, 0);
+  h.audios[0].dispatchEvent(new Event('playing'));
+  assert.equal(starts, 1);
+  assert.equal(ends, 0);
+  h.audios[0].dispatchEvent(new Event('playing'));
+  assert.equal(starts, 1);
+  h.audios[0].dispatchEvent(new Event('ended'));
+  assert.equal(ends, 1);
+});
+
+test('browser TTS start and aborted late events follow the same timing rule', async () => {
+  const h = await audioHarness({ rejectAudio: true });
+  let starts = 0;
+  const owner = new AbortController();
+  await h.tts('to', 'es', .85, '', undefined, { signal: owner.signal, onStart: () => starts++ });
+  assert.equal(starts, 0);
+  h.spoken[0].dispatchEvent(new Event('start'));
+  assert.equal(starts, 1);
+  const late = await audioHarness();
+  await late.tts('ro', 'es', .85, '', undefined, { signal: owner.signal, onStart: () => starts++ });
+  owner.abort();
+  late.audios[0].dispatchEvent(new Event('playing'));
+  assert.equal(starts, 1);
+});
+
+test('failed or cancelled counter audio never marks a new counter green', async () => {
+  const failed = await counterHarness();
+  failed.recordings[0].play = async () => { throw new Error('Unavailable'); };
+  failed.tap(0); await tick();
+  assert.deepEqual(failed.heard(), [false, false]);
+  assert.deepEqual(failed.pending(), []);
+  let ready;
+  const stale = await counterHarness(new Promise(resolve => { ready = resolve; }));
+  stale.tap(0); await tick(); stale.cancel(); ready(); await tick();
+  assert.deepEqual(stale.heard(), [false, false]);
 });
 
 test('rejected cloud playback tries browser speech; total failure is explicit', async () => {
