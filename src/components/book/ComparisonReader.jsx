@@ -4,38 +4,24 @@ import BookPageRenderer from '@/components/book/BookPageRenderer';
 import BackButton from '@/components/ui/BackButton';
 import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
+import { buildReadingPages, bookPageCount, resolveQuestionTarget } from '@/lib/book/comprehension.mjs';
+import PageMarkOverlay from '@/components/book/PageMarkOverlay';
 
-// ComparisonReader — opens multiple books in the familiar StudentBookReader
-// shell, concatenating all book pages into one continuous page range, then
-// appending question slides at the end. Each question slide shows the
-// anchor chart image (if any) as the page content and the Sol/Luna question
-// bar below — just like a page in the reader with a question active.
-//
-// Example: Book A (8 pp) + Book B (8 pp) + 2 questions = 18 pages total.
-// Pages 1-8 = Book A, 9-16 = Book B, 17-18 = question slides.
+// ComparisonReader - reads books sequentially (Book A, then Book B), never
+// side by side. Book-specific questions appear on their actual book page;
+// comparison/extra and general questions follow as their own slides.
 export default function ComparisonReader({ books, questions, onExit, lessonKey }) {
-  const safeBooks = Array.isArray(books) ? books : [];
-  const safeQuestions = Array.isArray(questions) ? questions.filter(Boolean) : [];
+  const safeBooks = useMemo(() => (Array.isArray(books) ? books : []), [books]);
+  const safeQuestions = useMemo(() => (Array.isArray(questions) ? questions.filter(Boolean) : []), [questions]);
 
-  // Build a flat virtual page list: book pages first, then question slides.
-  const pageList = useMemo(() => {
-    const pages = [];
-    safeBooks.forEach((book, bookIndex) => {
-      const pageCount = book.pdf_page_count || (book.pages || []).length || 1;
-      for (let p = 1; p <= pageCount; p++) {
-        pages.push({ type: 'book', bookIndex, pageNumber: p, book });
-      }
-    });
-    safeQuestions.forEach((q, qIdx) => {
-      pages.push({ type: 'question', qIdx, question: q });
-    });
-    return pages;
-  }, [safeBooks, safeQuestions]);
+  const pageList = useMemo(() => buildReadingPages(safeBooks, safeQuestions) || [], [safeBooks, safeQuestions]);
 
   const totalPages = pageList.length;
   const [currentPage, setCurrentPage] = useState(1);
   const [solFirst, setSolFirst] = useState(true);
   const [showAnchor, setShowAnchor] = useState(true);
+  const [activeQ, setActiveQ] = useState(0);
+  const [barOpen, setBarOpen] = useState(true);
 
   const { data: knownWords } = useKnownSightWords(lessonKey);
   const safeKnownWords = knownWords instanceof Set ? knownWords : new Set();
@@ -43,11 +29,23 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
   const page = pageList[currentPage - 1];
   const isQuestion = page?.type === 'question';
   const currentBook = page?.type === 'book' ? page.book : null;
+  const extraCount = pageList.filter(p => p.type === 'question').length;
+  const extraIndex = isQuestion ? pageList.slice(0, currentPage).filter(p => p.type === 'question').length : 0;
 
-  // Reset anchor chart visibility when entering a question page.
+  const pageQuestions = page?.questions || [];
+  const shownQuestion = pageQuestions[Math.min(activeQ, pageQuestions.length - 1)] || null;
+
   useEffect(() => {
-    if (isQuestion) setShowAnchor(true);
-  }, [currentPage, isQuestion]);
+    setShowAnchor(true);
+    setActiveQ(0);
+    setBarOpen(true);
+  }, [currentPage]);
+
+  const jumpTo = (pred) => {
+    const idx = pageList.findIndex(pred);
+    if (idx >= 0) setCurrentPage(idx + 1);
+  };
+  const sectionKey = isQuestion ? 'extra' : page ? `b${page.bookIndex}` : '';
 
   // ── Fullscreen (same as StudentBookReader) ──
   const readerRef = useRef(null);
@@ -104,21 +102,22 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
     />
   );
 
+  const bookLetter = (i) => (i === 0 ? 'Libro A' : 'Libro B');
   const pageTitle = isQuestion
-    ? `Pregunta ${page.qIdx + 1}`
-    : (currentBook?.title || '');
+    ? `Pregunta ${extraIndex}`
+    : (currentBook ? `${safeBooks.length > 1 ? bookLetter(page.bookIndex) + ': ' : ''}${currentBook.title || ''}` : '');
+  const localLabel = isQuestion
+    ? `Pregunta ${extraIndex} / ${extraCount}`
+    : currentBook ? `p ${page.pageNumber} / ${bookPageCount(currentBook)}` : '';
 
-  const hasAnchor = isQuestion && !!page.question?.anchor_chart_url;
+  const hasAnchor = !!shownQuestion?.anchor_chart_url;
 
-  // When a question has an anchor chart tied to a specific book page, show a
-  // 2-up spread: the book page on the left, the anchor chart on the right.
-  const anchorPageNum = isQuestion && hasAnchor ? page.question.page_number : 0;
-  const anchorBook = anchorPageNum >= 1
-    ? (safeBooks.find(b => {
-        const pc = b.pdf_page_count || (b.pages || []).length || 1;
-        return anchorPageNum <= pc;
-      }) || safeBooks[0])
-    : null;
+  // An extra question may point at one book page; show it one at a time
+  // (chart OR book page), never as a 2-up spread.
+  const extraTarget = isQuestion ? resolveQuestionTarget(shownQuestion, safeBooks) : null;
+  const refBook = extraTarget && extraTarget.bookIndex != null && extraTarget.bookIndex >= 0 && extraTarget.pageNumber >= 1
+    ? safeBooks[extraTarget.bookIndex] : null;
+  const refPage = refBook ? extraTarget.pageNumber : 0;
 
   return (
     <div
@@ -148,6 +147,28 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
       >
         <BackButton tone="teal" onClick={onExit} />
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{pageTitle}</p>
+        {(safeBooks.length > 1 || extraCount > 0) && (
+          <div className="flex shrink-0 overflow-hidden rounded border border-teal-700">
+            {safeBooks.map((b, i) => (
+              <button
+                key={b.id || i}
+                onClick={() => jumpTo(p => p.type === 'book' && p.bookIndex === i)}
+                title={b.title}
+                className={`px-2 py-0.5 text-xs font-bold ${sectionKey === `b${i}` ? 'bg-teal-600 text-white' : 'text-teal-300'}`}
+              >
+                {safeBooks.length > 1 ? (i === 0 ? 'A' : 'B') : 'Libro'}
+              </button>
+            ))}
+            {extraCount > 0 && (
+              <button
+                onClick={() => jumpTo(p => p.type === 'question')}
+                className={`px-2 py-0.5 text-xs font-bold ${sectionKey === 'extra' ? 'bg-teal-600 text-white' : 'text-teal-300'}`}
+              >
+                Preguntas
+              </button>
+            )}
+          </div>
+        )}
         {hasAnchor && (
           <button
             onClick={() => setShowAnchor(v => !v)}
@@ -158,7 +179,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
             }`}
           >
             <ImageIcon className="inline h-3 w-3 mr-0.5" />
-            Chart
+            {refBook ? (showAnchor ? 'Chart' : 'Page') : 'Chart'}
           </button>
         )}
         <button
@@ -171,7 +192,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
           {isFullscreen ? '⊡' : '⛶'}
         </button>
         <span className="text-teal-300 text-xs font-bold shrink-0">
-          Pg {currentPage} / {totalPages}
+          {localLabel} <span className="text-teal-500">({currentPage}/{totalPages})</span>
         </span>
       </div>
 
@@ -180,42 +201,41 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         className="flex-1 relative overflow-hidden no-select-text"
         style={{ background: '#fff' }}
       >
-        {isQuestion ? (
-          hasAnchor && showAnchor ? (
-            anchorBook ? (
-              <div className="flex h-full w-full">
-                <div className="flex flex-1 items-center justify-center overflow-hidden border-r border-slate-200 bg-white">
-                  {renderBookPage(anchorBook, anchorPageNum)}
-                </div>
-                <div className="flex flex-1 items-center justify-center overflow-hidden bg-slate-50">
-                  <img
-                    src={page.question.anchor_chart_url}
-                    alt="Anchor chart"
-                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="relative flex h-full w-full items-center justify-center">
-                <img
-                  src={page.question.anchor_chart_url}
-                  alt="Anchor chart"
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                />
-              </div>
-            )
+        {hasAnchor && showAnchor ? (
+          <div className="relative flex h-full w-full items-center justify-center">
+            <img src={shownQuestion.anchor_chart_url} alt="Anchor chart" className="h-full w-full object-contain" />
+          </div>
+        ) : isQuestion ? (
+          hasAnchor && (showAnchor || !refBook) ? (
+            <div className="relative flex h-full w-full items-center justify-center">
+              <img
+                src={shownQuestion.anchor_chart_url}
+                alt="Anchor chart"
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+            </div>
+          ) : refBook ? (
+            <div className="relative w-full h-full">
+              {renderBookPage(refBook, refPage)}
+              <span className="absolute bottom-2 left-2 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-black text-white">
+                {safeBooks.length > 1 ? `${bookLetter(extraTarget.bookIndex)} · ` : ''}p {refPage}
+              </span>
+            </div>
           ) : (
             <div className="relative flex h-full w-full items-center justify-center">
               <div className="flex flex-col items-center justify-center">
                 <span className="text-8xl font-black text-slate-200">?</span>
-                <p className="mt-2 text-lg font-bold text-slate-300">Pregunta {page.qIdx + 1}</p>
+                <p className="mt-2 text-lg font-bold text-slate-300">Pregunta {extraIndex}</p>
               </div>
             </div>
           )
         ) : currentBook ? (
           <div className="relative w-full h-full">
             {renderBookPage(currentBook, page.pageNumber)}
-            {books.length > 1 && (
+            {barOpen && shownQuestion?.mark?.shape && (
+              <PageMarkOverlay mark={shownQuestion.mark} />
+            )}
+            {safeBooks.length > 1 && (
               <span
                 className={`absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-xs font-black text-white ${
                   page.bookIndex === 0 ? 'bg-indigo-500' : 'bg-amber-500'
@@ -228,15 +248,38 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         ) : null}
       </div>
 
-      {/* Question bar — only on question slides, positioned like ReaderQuestions */}
-      {isQuestion && (
+      {/* Question bar - extra slides, or book pages that have questions */}
+      {shownQuestion && (
         <div className="shrink-0 mx-auto w-full max-w-4xl px-3 py-2">
-          <ToggleableQuestionBar
-            question={page.question}
-            solFirst={solFirst}
-            setSolFirst={setSolFirst}
-            knownWords={safeKnownWords}
-          />
+          {pageQuestions.length > 1 && barOpen && (
+            <div className="mb-1.5 flex flex-wrap gap-1">
+              {pageQuestions.map((q, i) => (
+                <button
+                  key={q.id || i}
+                  onClick={() => setActiveQ(i)}
+                  className={`rounded-full px-3 py-0.5 text-xs font-black ${i === activeQ ? 'bg-teal-500 text-white' : 'bg-teal-900 text-teal-300'}`}
+                >
+                  Pregunta {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
+          {isQuestion || barOpen ? (
+            <ToggleableQuestionBar
+              question={shownQuestion}
+              solFirst={solFirst}
+              setSolFirst={setSolFirst}
+              knownWords={safeKnownWords}
+              onClose={isQuestion ? undefined : () => setBarOpen(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setBarOpen(true)}
+              className="rounded-full bg-amber-500 px-3 py-1 text-xs font-black text-white"
+            >
+              {pageQuestions.length > 1 ? `${pageQuestions.length} preguntas` : 'Pregunta'}
+            </button>
+          )}
         </div>
       )}
 
@@ -255,13 +298,11 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         </button>
         <div className="flex-1 min-w-0 text-center">
           <span className="text-teal-300 text-xs font-bold">
-            {isQuestion
-              ? `Pregunta ${page.qIdx + 1} de ${questions.length}`
-              : (currentBook?.title || '')}
+            {isQuestion ? `Pregunta ${extraIndex} de ${extraCount}` : pageTitle}
           </span>
         </div>
         <span className="text-teal-400 text-xs font-bold shrink-0 px-1">
-          Pg {currentPage} / {totalPages}
+          {localLabel} ({currentPage}/{totalPages})
         </span>
         <button
           onClick={goNext}

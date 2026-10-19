@@ -6,19 +6,20 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Plus, Pencil, Trash2, Presentation, ArrowLeft, BookOpen, XCircle, Upload, Loader2, GripVertical } from 'lucide-react';
 import MarkEditor from '@/components/book/MarkEditor';
 import ComparisonReader from '@/components/book/ComparisonReader';
+import { bookPageCount, resolveQuestionTarget, questionTargetFields, questionLabel } from '@/lib/book/comprehension.mjs';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
 
 // ── Authoring row ─────────────────────────────────────────────
-function QuestionRow({ q, onEdit, onDelete, dragHandleProps }) {
+function QuestionRow({ q, books, onEdit, onDelete, dragHandleProps }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div {...dragHandleProps} className="flex h-9 w-6 flex-shrink-0 cursor-grab items-center justify-center text-slate-300 hover:text-slate-500 active:cursor-grabbing">
         <GripVertical className="h-5 w-5" />
       </div>
-      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-sm font-black text-indigo-600">
-        {q.page_number ? `p${q.page_number}` : '★'}
+      <div className="flex h-9 min-w-[2.25rem] max-w-[11rem] flex-shrink-0 items-center justify-center truncate rounded-lg bg-indigo-50 px-2 text-xs font-black text-indigo-600">
+        {questionLabel(q, books)}
       </div>
       <div className="flex-1">
         <p className="font-black text-slate-800">{q.question_text}</p>
@@ -35,23 +36,65 @@ function QuestionRow({ q, onEdit, onDelete, dragHandleProps }) {
 }
 
 // ── Edit dialog ───────────────────────────────────────────────
-function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages, books }) {
+function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, books }) {
+  const t0 = initial ? resolveQuestionTarget(initial, books) : null;
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
-  const [page, setPage] = useState(initial?.page_number || 0);
+  const [kind, setKind] = useState(t0?.kind || (books.length ? 'book' : 'general'));
+  const [bookId, setBookId] = useState(t0?.bookId || books[0]?.id || '');
+  const [page, setPage] = useState(t0?.pageNumber || 1);
+  const [extraPage, setExtraPage] = useState(t0?.extraPage || 1);
   const [mark, setMark] = useState(initial?.mark?.shape ? initial.mark : null);
   const [anchorChartUrl, setAnchorChartUrl] = useState(initial?.anchor_chart_url || '');
   const [uploading, setUploading] = useState(false);
-  const max = maxPages || 999;
-  const isQuestionSlide = page > 0 && page > max;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const book = books.find(b => b.id === bookId) || null;
+  const bookIndex = books.findIndex(b => b.id === bookId);
+  const max = book ? (bookPageCount(book) || 999) : 999;
+  const isQuestionSlide = kind === 'extra';
+  const selectValue = kind === 'book' ? `book:${bookId}` : kind;
 
-  // Reset the form for the next question, keeping the same page so a teacher
-  // can add several questions in sequence for one page without re-typing it.
+  const onTargetChange = (v) => {
+    setMark(null);
+    if (v.startsWith('book:')) { setKind('book'); setBookId(v.slice(5)); setPage(1); }
+    else setKind(v);
+  };
+
   const resetForNext = () => {
     setQuestion('');
     setStem('');
     setMark(null);
     setAnchorChartUrl('');
+  };
+
+  const buildPayload = () => {
+    if (kind === 'book' && !book) throw new Error('Pick a book for this question.');
+    const target = questionTargetFields(
+      { kind, bookId: kind === 'book' ? bookId : null, pageNumber: kind === 'book' ? Math.min(max, Math.max(1, page)) : 0, extraPage: kind === 'extra' ? Math.max(1, extraPage) : 0 },
+      books
+    );
+    return {
+      question_text: question.trim(),
+      sentence_stem: stem.trim(),
+      mark: kind === 'book' ? mark : null,
+      anchor_chart_url: anchorChartUrl,
+      ...target,
+    };
+  };
+
+  const submit = async (cont) => {
+    if (!question.trim() || saving) return;
+    setError('');
+    setSaving(true);
+    try {
+      const payload = buildPayload();
+      await (cont ? onSaveAndContinue(payload) : onSave(payload));
+      if (cont) resetForNext();
+    } catch (e) {
+      setError(e?.message || 'Could not save this question. Try again.');
+    }
+    setSaving(false);
   };
 
   const handleUpload = async (file) => {
@@ -61,20 +104,21 @@ function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages
       setAnchorChartUrl(res.file_url);
     } catch (e) {
       console.error('Upload failed', e);
+      setError('Anchor chart upload failed.');
     }
     setUploading(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div className="flex w-full max-w-3xl gap-4 rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!saving && !uploading) onCancel(); }}>
+      <div className="flex max-h-[92dvh] w-full max-w-3xl gap-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Left: live page thumbnail */}
         <div className="flex max-h-[80vh] w-64 flex-shrink-0 flex-col overflow-y-auto">
           <div className="mb-2 text-center text-xs font-black text-slate-500">
-            {page === 0 ? '★ General' : isQuestionSlide ? `Question slide ${page}` : `Page ${page}`}
+            {kind === 'general' ? 'General' : isQuestionSlide ? `Comparison slide ${extraPage}` : `${bookIndex === 1 ? 'Book B' : 'Book A'} - page ${page}`}
           </div>
-          {page === 0 ? (
-            <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-4xl">★</div>
+          {kind === 'general' ? (
+            <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-black text-slate-300">General question</div>
           ) : isQuestionSlide ? (
             <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 gap-2">
               {anchorChartUrl ? (
@@ -84,8 +128,8 @@ function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages
               )}
               <span className="text-xs font-bold text-slate-400">Question slide (no book page)</span>
             </div>
-          ) : books.length > 0 ? (
-            <MarkEditor key={page} books={books} page={page} mark={mark} onChange={setMark} />
+          ) : book ? (
+            <MarkEditor key={`${book.id}:${page}`} books={[book]} page={page} mark={mark?.book_id && mark.book_id !== book.id ? null : mark} onChange={setMark} />
           ) : (
             <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-300">No book selected</div>
           )}
@@ -94,16 +138,38 @@ function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages
         {/* Right: form fields */}
         <div className="flex flex-1 flex-col">
           <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
-          <label className="mb-1 block text-sm font-bold text-slate-600">
-            Slide number (0 = general ★{maxPages ? `, books 1–${max}, questions ${max + 1}+` : ''})
-          </label>
-          <input
-            type="number"
-            min={0}
-            value={page}
-            onChange={e => { setPage(Math.max(0, parseInt(e.target.value) || 0)); setMark(null); }}
-            className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
-          />
+          <label className="mb-1 block text-sm font-bold text-slate-600">Where it appears</label>
+          <select
+            value={selectValue}
+            onChange={e => onTargetChange(e.target.value)}
+            className="mb-3 w-full rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+          >
+            <option value="general">General</option>
+            {books.map((b, i) => (
+              <option key={b.id} value={`book:${b.id}`}>{books.length > 1 ? (i === 0 ? 'Book A' : 'Book B') : 'Book'} ({b.title})</option>
+            ))}
+            <option value="extra">{books.length > 1 ? 'Comparison / extra slide' : 'Extra slide'}</option>
+          </select>
+          {kind === 'book' && (
+            <>
+              <label className="mb-1 block text-sm font-bold text-slate-600">Page in this book (1-{max === 999 ? '?' : max})</label>
+              <input
+                type="number" min={1} max={max} value={page}
+                onChange={e => { setPage(Math.min(max, Math.max(1, parseInt(e.target.value) || 1))); setMark(null); }}
+                className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+              />
+            </>
+          )}
+          {kind === 'extra' && (
+            <>
+              <label className="mb-1 block text-sm font-bold text-slate-600">Extra slide number (1+, shown after the books)</label>
+              <input
+                type="number" min={1} value={extraPage}
+                onChange={e => setExtraPage(Math.max(1, parseInt(e.target.value) || 1))}
+                className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+              />
+            </>
+          )}
           <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
           <textarea
             value={question}
@@ -136,25 +202,25 @@ function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages
               <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) handleUpload(f); }} />
             </label>
           )}
+          {error && <p className="mb-3 rounded-lg bg-red-50 p-2 text-sm font-bold text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
-            <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
+            <button onClick={onCancel} disabled={saving || uploading} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
             {onSaveAndContinue && !initial && (
               <button
-                onClick={() => {
-                  if (!question.trim()) return;
-                  onSaveAndContinue(question.trim(), stem.trim(), page, page > 0 ? mark : null, anchorChartUrl);
-                  resetForNext();
-                }}
-                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300"
+                onClick={() => submit(true)}
+                disabled={saving || uploading || !question.trim()}
+                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300 disabled:opacity-50"
               >
                 Save & add next
               </button>
             )}
             <button
-              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page, page > 0 ? mark : null, anchorChartUrl)}
-              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+              onClick={() => submit(false)}
+              disabled={saving || uploading || !question.trim()}
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-              Save
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
@@ -291,6 +357,7 @@ export default function BookComprehension() {
   const [lesson, setLesson] = useState(() => localStorage.getItem('bcq_lesson') || 'L1');
   const [editing, setEditing] = useState(null); // null | 'new' | record
   const [presenting, setPresenting] = useState(false);
+  const [filter, setFilter] = useState('all');
   const lessonKey = `${module}.${lesson}`;
 
   useEffect(() => { localStorage.setItem('bcq_module', module); }, [module]);
@@ -305,7 +372,7 @@ export default function BookComprehension() {
         { sort: 'page_number', limit: 100 }
       );
       return res.items.sort(
-        (a, b) => (a.page_number || 0) - (b.page_number || 0) || (a.order || 0) - (b.order || 0)
+        (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.page_number || 0) - (b.page_number || 0)
       );
     },
   });
@@ -372,27 +439,46 @@ export default function BookComprehension() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark, anchor_chart_url, keepOpen }) => {
-      if (id) {
-        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number, mark: mark || {}, anchor_chart_url: anchor_chart_url || '' });
-      } else {
-        await base44.entities.BookComprehensionQuestion.create({
-          lesson_key: lessonKey,
-          question_text,
-          sentence_stem,
-          page_number,
-          mark: mark || {},
-          anchor_chart_url: anchor_chart_url || '',
-          order: questions.length,
-        });
-      }
-      return { keepOpen };
+    mutationFn: async ({ id, question_text, sentence_stem, page_number, book_id, question_scope, extra_page, mark, anchor_chart_url }) => {
+      const fields = {
+        question_text,
+        sentence_stem,
+        page_number: page_number || 0,
+        book_id: book_id || '',
+        question_scope,
+        extra_page: extra_page || 0,
+        mark: mark || {},
+        anchor_chart_url: anchor_chart_url || '',
+      };
+      if (id) await base44.entities.BookComprehensionQuestion.update(id, fields);
+      else await base44.entities.BookComprehensionQuestion.create({ lesson_key: lessonKey, ...fields, order: questions.length });
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] });
-      if (!vars?.keepOpen) setEditing(null);
+      qc.invalidateQueries({ queryKey: ['book-reader-questions-v2'] });
+      qc.invalidateQueries({ queryKey: ['cmp-questions', lessonKey] });
     },
   });
+
+  const saveQuestion = async (payload, { keepOpen } = {}) => {
+    await saveMutation.mutateAsync({ id: editing && editing !== 'new' ? editing.id : null, ...payload });
+    if (!keepOpen) setEditing(null);
+  };
+
+  const matchesFilter = (f, q) => {
+    if (f === 'all') return true;
+    const t = resolveQuestionTarget(q, books);
+    if (f === 'general') return t.kind === 'general';
+    if (f === 'extra') return t.kind === 'extra';
+    return t.kind === 'book' && t.bookIndex === Number(f.slice(1));
+  };
+  const visible = questions.filter(q => matchesFilter(filter, q));
+  const filterOptions = [
+    { id: 'all', label: 'All' },
+    ...books.map((b, i) => ({ id: `b${i}`, label: books.length > 1 ? `${i === 0 ? 'Book A' : 'Book B'}: ${b.title}` : b.title })),
+    { id: 'extra', label: books.length > 1 ? 'Comparison / extra' : 'Extra' },
+    { id: 'general', label: 'General' },
+  ];
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.BookComprehensionQuestion.delete(id),
@@ -407,11 +493,16 @@ export default function BookComprehension() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
   });
 
+  // Reorder within the filtered view, then write the moved items back into
+  // the global slots they occupied so other questions keep their order.
   const onDragEnd = (result) => {
     if (!result.destination || result.destination.index === result.source.index) return;
-    const reordered = [...questions];
-    const [moved] = reordered.splice(result.source.index, 1);
-    reordered.splice(result.destination.index, 0, moved);
+    const sub = [...visible];
+    const [moved] = sub.splice(result.source.index, 1);
+    sub.splice(result.destination.index, 0, moved);
+    const slots = new Set(visible.map(q => q.id));
+    let k = 0;
+    const reordered = questions.map(q => (slots.has(q.id) ? sub[k++] : q));
     reorderMutation.mutate(reordered);
   };
 
@@ -466,6 +557,21 @@ export default function BookComprehension() {
           onDeleteCatalog={(id) => deleteCatalogMutation.mutate(id)}
         />
 
+        {/* Filter */}
+        {questions.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {filterOptions.map(o => (
+              <button
+                key={o.id}
+                onClick={() => setFilter(o.id)}
+                className={`max-w-[16rem] truncate rounded-full px-3 py-1 text-xs font-black ${filter === o.id ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}
+              >
+                {o.label} ({questions.filter(q => matchesFilter(o.id, q)).length})
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Question list */}
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -476,12 +582,16 @@ export default function BookComprehension() {
             <p className="text-slate-400 font-bold">No questions yet for {lessonKey}.</p>
             <p className="mt-1 text-sm text-slate-400">Click "Add question" to create one.</p>
           </div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-xl border-2 border-dashed border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-400">
+            No questions in this view.
+          </div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <Droppable droppableId="questions">
               {(provided) => (
                 <div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col gap-2">
-                  {questions.map((q, i) => (
+                  {visible.map((q, i) => (
                     <Draggable key={q.id} draggableId={q.id} index={i}>
                       {(dragProvided) => (
                         <div
@@ -491,6 +601,7 @@ export default function BookComprehension() {
                         >
                           <QuestionRow
                             q={q}
+                            books={books}
                             onEdit={() => setEditing(q)}
                             onDelete={() => { if (confirm('Delete this question?')) deleteMutation.mutate(q.id); }}
                             dragHandleProps={dragProvided.dragHandleProps}
@@ -510,12 +621,12 @@ export default function BookComprehension() {
       {/* Editor dialog */}
       {editing && (
         <QuestionEditor
+          key={editing === 'new' ? 'new' : editing.id}
           initial={editing === 'new' ? null : editing}
-          maxPages={books.reduce((sum, b) => sum + (b.pdf_page_count || 0), 0) || null}
           books={books}
-          onSave={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark, anchor_chart_url })}
-          onSaveAndContinue={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: null, question_text, sentence_stem, page_number, mark, anchor_chart_url, keepOpen: true })}
-          onCancel={() => setEditing(null)}
+          onSave={(payload) => saveQuestion(payload)}
+          onSaveAndContinue={(payload) => saveQuestion(payload, { keepOpen: true })}
+          onCancel={() => { if (!saveMutation.isPending) setEditing(null); }}
         />
       )}
 

@@ -2,6 +2,19 @@
   "name": "BookComprehensionQuestion",
   "type": "object",
   "properties": {
+    "book_id": {
+      "type": "string",
+      "description": "Stable BookCatalog ID for a book-scoped question. page_number is local to this book."
+    },
+    "question_scope": {
+      "type": "string",
+      "enum": ["book", "general", "extra"],
+      "description": "Absent on legacy questions, which retain concatenated slide numbering."
+    },
+    "extra_page": {
+      "type": "integer",
+      "description": "Comparison/extra slide number, independent of either book's page count."
+    },
     "lesson_key": {
       "type": "string",
       "description": "Lesson key e.g. 'M2.L1'. Questions are organized per lesson so they can be reused across years."

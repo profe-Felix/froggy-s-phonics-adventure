@@ -98,6 +98,7 @@ export default function StudentBookReader({
   embedded = false,
   teacherMode = false,
   headerExtra = null,
+  lessonContext = null,
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -108,6 +109,7 @@ export default function StudentBookReader({
   const restoredPage = (restored && restored.bookId === book.id) ? restored.page : null;
   const startPage = (initialPage && initialPage >= 1 && initialPage <= (book.pdf_page_count || 1)) ? initialPage : (restoredPage || 1);
   const [currentPage, setCurrentPage] = useState(startPage);
+  const [continuationBook, setContinuationBook] = useState(null);
   const [twoPerPage, setTwoPerPage] = useState(false);
   const containerRef = useRef(null);
   const recordingViewportRef = useRef(null);
@@ -518,9 +520,8 @@ export default function StudentBookReader({
     onBack();
   }, [saveRecording, recKey, stopRecording, laserTracker, resetRecorder, onBack]);
 
-  const canGoNext = visiblePageNumbers[visiblePageNumbers.length - 1] < totalPages;
+  const hasNextPage = visiblePageNumbers[visiblePageNumbers.length - 1] < totalPages;
   const canGoPrev = currentPage > 1;
-  const goNext = () => navigateTo(Math.min(totalPages, currentPage + visiblePageNumbers.length));
   const goPrev = () => navigateTo(previousBookPage(currentPage, twoPerPage, firstPair));
 
   const handleReplay = (rec) => {
@@ -551,8 +552,19 @@ export default function StudentBookReader({
 
   // Teacher-mode only: planned comprehension questions for the visible page(s).
   // Students never see the ? button or the Sol/Luna bar.
-  const { items: bookQuestions, lessonKeys: bookLessonKeys, lessonKey: bookLessonKey } = useBookQuestions(teacherMode ? book.catalog_book_id : null);
-  const effectiveLessonKey = selectedLessonKey || bookLessonKey;
+  const { items: bookQuestions, lessonKeys: bookLessonKeys, lessonKey: bookLessonKey, booksByLesson } = useBookQuestions(teacherMode ? book.catalog_book_id : null);
+  const effectiveLessonKey = selectedLessonKey || lessonContext || bookLessonKey;
+  const lessonBooks = booksByLesson?.[effectiveLessonKey] || [];
+  const lessonBookIndex = lessonBooks.findIndex(b => b.id === book.catalog_book_id);
+  const nextLessonBook = lessonBookIndex >= 0 ? lessonBooks[lessonBookIndex + 1] : null;
+  const canGoNext = hasNextPage || (teacherMode && !!nextLessonBook);
+  const goNext = async () => {
+    if (hasNextPage) return navigateTo(Math.min(totalPages, currentPage + visiblePageNumbers.length));
+    if (!teacherMode || !nextLessonBook) return;
+    // Use the existing recording-safe page transition before changing books.
+    await navigateTo(currentPage);
+    setContinuationBook({ ...nextLessonBook, catalog_book_id: nextLessonBook.id });
+  };
   const { data: bookKnownWords } = useKnownSightWords(teacherMode ? effectiveLessonKey : null, teacherMode ? className : null);
   const [activeQ, setActiveQ] = useState(null);
   useEffect(() => { setActiveQ(null); }, [recKey]);
@@ -560,12 +572,12 @@ export default function StudentBookReader({
   // Auto-select the first lesson key when the hook loads
   useEffect(() => {
     if (bookLessonKeys?.length > 0 && !selectedLessonKey) {
-      setSelectedLessonKey(bookLessonKeys[0]);
+      setSelectedLessonKey(bookLessonKeys.includes(lessonContext) ? lessonContext : bookLessonKeys[0]);
     }
-  }, [bookLessonKeys, selectedLessonKey]);
+  }, [bookLessonKeys, selectedLessonKey, lessonContext]);
 
-  const filteredQuestions = teacherMode && selectedLessonKey
-    ? bookQuestions.filter((q) => q.lesson_key === selectedLessonKey)
+  const filteredQuestions = teacherMode && effectiveLessonKey
+    ? bookQuestions.filter((q) => q.lesson_key === effectiveLessonKey)
     : bookQuestions;
 
   const visibleQuestions = teacherMode
@@ -667,6 +679,23 @@ export default function StudentBookReader({
   };
   // Single combined bottom bar
   const pageLabel = `${visiblePageNumbers.join('–')}/${totalPages}`;
+
+  if (continuationBook) return (
+    <StudentBookReader
+      key={continuationBook.id}
+      book={continuationBook}
+      studentNumber={studentNumber}
+      className={className}
+      teacherMode={teacherMode}
+      lessonContext={effectiveLessonKey}
+      initialPage={1}
+      onBack={() => setContinuationBook(null)}
+      onRecordingSaved={onRecordingSaved}
+      recordingPages={continuationBook.recording_pages}
+      embedded={embedded}
+      headerExtra={headerExtra}
+    />
+  );
 
   return (
     <div
@@ -959,7 +988,10 @@ export default function StudentBookReader({
         <span className="text-teal-400 text-xs font-bold shrink-0 px-1">{pageLabel}</span>
 
         {/* Next button — large rounded rectangle for easy tapping by kids */}
-        <button onClick={goNext} aria-label="Next book pages" disabled={!canGoNext || uploading}
+        <button onClick={goNext}
+          aria-label={!hasNextPage && nextLessonBook ? `Continue to Book ${String.fromCharCode(66 + lessonBookIndex)}: ${nextLessonBook.title}` : 'Next book pages'}
+          title={!hasNextPage && nextLessonBook ? `Continue to ${nextLessonBook.title}` : 'Next pages'}
+          disabled={!canGoNext || uploading}
           className="shrink-0 w-16 h-12 rounded-2xl flex items-center justify-center font-bold text-white text-3xl leading-none disabled:opacity-30 active:scale-95 transition-transform"
           style={{ background: '#0f766e' }}>›</button>
       </div>
