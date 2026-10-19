@@ -78,10 +78,10 @@ test('each new round gets fresh card identities', () => {
 test('native config forces picture-only behavior regardless of legacy toggles', () => {
   const text = source('lib/lettersort/rounds.js');
   assert.match(text, /imageOnly: family/);
-  assert.match(text, /cardtype: family \? 'image'/);
-  assert.match(text, /tilesOnly: family \? false/);
-  assert.match(text, /hideWords: family \? true/);
-  assert.match(text, /splitCards: family \? false/);
+  assert.match(text, /cardtype: family(?: \|\| listening)? \? 'image'/);
+  assert.match(text, /tilesOnly: family(?: \|\| listening)? \? false/);
+  assert.match(text, /hideWords: family(?: \|\| listening)? \? true/);
+  assert.match(text, /splitCards: family(?: \|\| listening)? \? false/);
   assert.match(text, /mode === 'familyany'\) return buildFamilyAnyRound\(config, files\)/);
 });
 test('standalone mode and lesson preset both expose the same activity', () => {

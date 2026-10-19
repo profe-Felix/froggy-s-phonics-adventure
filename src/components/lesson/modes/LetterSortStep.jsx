@@ -6,6 +6,7 @@ import { buildConfig } from '@/lib/lettersort/rounds';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import { useClassColors } from '@/hooks/useClassColors';
 import { buildLetterSortLetters, parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
+import { useListeningSortResults } from '@/hooks/useListeningSortResults';
 
 // Embedded student step for Letter Sort. When the teacher assigned a preset, the
 // activity runs that preset's config directly (no Supabase lookup). Otherwise it
@@ -48,6 +49,7 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
     }
     return buildConfig('letters', null, DEFAULT_VALS);
   }, [presetId, presets, curriculumPosition, curriculumPositionOverride]);
+  const tracking = useListeningSortResults({ config, studentClass, studentNumber });
 
   if (isLoading && presetId && !presets[presetId]) {
     return (
@@ -105,7 +107,9 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
         <LetterSortActivity
           config={config}
           isTeacher={false}
+          onAttempt={tracking.onAttempt}
           onRoundComplete={({ mistakes, correct, wrong, firstTryCorrect, total }) => {
+            tracking.onComplete();
             setBestMistakes((prev) => (prev === null ? mistakes : Math.min(prev, mistakes)));
             setBestFirstTryCorrect((prev) => {
               const cur = firstTryCorrect ?? 0;
@@ -116,6 +120,7 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
             setFeedback(null);
           }}
         />
+        {tracking.status && <p role="status" className="px-3 text-xs text-slate-600">{tracking.status}</p>}
       </div>
 
       {/* Done / feedback bar */}

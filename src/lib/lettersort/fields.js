@@ -3,6 +3,8 @@
 // two surfaces stay in sync.
 
 export const FIELDS = {
+  sounds: { label: 'Sonidos (uno por problema o fila)', type: 'text', ph: 't, g, r' },
+  headerimages: { label: 'Imágenes de encabezado', type: 'text', ph: 'URL inicio|URL final' },
   consonant: { label: 'Consonante objetivo', type: 'text', ph: 't → ta, te, ti, to, tu' },
   letters: { label: 'Letras', type: 'text', ph: 'a, b, ch' },
   lettermatch: { label: 'Coincidencia de letra', type: 'select', options: ['initial', 'contains', 'position'] },

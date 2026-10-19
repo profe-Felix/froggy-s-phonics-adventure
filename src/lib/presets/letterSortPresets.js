@@ -2,6 +2,9 @@
 // (Runtime wiring into the Letter Sort lesson step is pending — these presets
 //  drive the standalone Letter Sort page via Supabase today.)
 export default {
+  "Aliteracion.Parejas": { label: "Aliteración — parejas de imágenes", mode: "soundmatch", sounds: "t,g,r", builtin: true },
+  "Familia.T.InicioFinal": { label: "Familia t — inicio/final, tigre y zapato", mode: "syllableposition", consonant: "t", headers: "tigre,zapato", per: 4, builtin: true },
+  "Aliteracion.TresDeCuatro": { label: "Aliteración — tres de cuatro, t/g/r", mode: "alliteration", sounds: "t,g,r", builtin: true },
   "Familia.T.CualquierPosicion": { label: "Familia t — tiene / no tiene, en cualquier parte", mode: "familyany", consonant: "t", per: 4, builtin: true },
   "M1.L16.F.A1": { "syllables": ["mo","mi","ma","mu","me"], "words": [], "syllcmp": "equals", "syllmatch": "initial", "per": 4 },
   "M4.L16.CF.A1": { "syllcount": [2,3,4], "words": ["queso","gato","cama","gelatina","pelota","boli..grafo","xilo..fono","lupa"] },

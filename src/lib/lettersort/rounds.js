@@ -21,6 +21,7 @@ import {
 } from './parsers';
 import { headerImageUrl } from './storage';
 import { expandConsonantFamily, buildFamilyAnyRound } from './familyAny.mjs';
+import { LISTENING_MODES, buildListeningRound } from './listeningSort.mjs';
 
 export function parseList(raw) {
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -55,13 +56,15 @@ const LABELS = {
 export function buildConfig(modeKey, internalMode, v = {}) {
   const mode = internalMode || inferClassicMode(v);
   const family = mode === 'familyany';
+  const listening = LISTENING_MODES.includes(mode);
   const consonant = String(v.consonant ?? 't').trim().toLowerCase().replace(/^\/|\/$/g, '');
   return {
     modeKey,
     mode,
+    sounds: parseList(v.sounds || (listening ? 't,g,r' : '')),
     consonant,
     familySyllables: family ? expandConsonantFamily(consonant) : [],
-    imageOnly: family,
+    imageOnly: family || listening,
     letters: parseList(v.letters),
     syllables: parseList(v.syllables),
     counts: parseCountsParam(v.counts ?? v.syllcount),
@@ -72,10 +75,10 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     rows: v.rows || '',
     rowsyll: v.rowsyll || '',
     groups: v.groups || '',
-    headers: parseList(v.headers),
+    headers: parseList(v.headers || (mode === 'syllableposition' ? 'tigre,zapato' : '')),
     answers: v.answers || '',
     headertype: v.headertype || 'text',
-    cardtype: family ? 'image' : v.cardtype || (isClassic(mode) ? 'image' : 'word'),
+    cardtype: family || listening ? 'image' : v.cardtype || (isClassic(mode) ? 'image' : 'word'),
     match: v.match || 'syllable-start',
     lettermatch: v.lettermatch || 'initial',
     layout: v.layout || 'side',
@@ -90,14 +93,14 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     slots: parseInt(v.slots, 10) || 1,
     bg: v.bg || '',
     headerimages: Array.isArray(v.headerimages)
-      ? v.headerimages.map((s) => String(s).trim()).filter(Boolean)
-      : (v.headerimages ? String(v.headerimages).split('|').map((s) => s.trim()).filter(Boolean) : []),
+      ? v.headerimages.map((s) => String(s).trim())
+      : (v.headerimages ? String(v.headerimages).split('|').map((s) => s.trim()) : []),
     per: Math.max(1, Math.min(8, parseInt(v.per, 10) || 4)),
     syllmatch: v.syllmatch || 'initial',
     syllcmp: v.syllcmp || 'equals',
-    tilesOnly: family ? false : !!v.tilesonly,
-    hideWords: family ? true : !!v.hidewords,
-    splitCards: family ? false : !!v.splitcards,
+    tilesOnly: family || listening ? false : !!v.tilesonly,
+    hideWords: family || listening ? true : !!v.hidewords,
+    splitCards: family || listening ? false : !!v.splitcards,
     hideTitle: family ? false : !!v.hidetitle,
     labelStyle: v.emoji ? 'emoji' : 'text',
     lang: 'es',
@@ -328,6 +331,7 @@ function rowsyllRowMatch(sylls, matchMode) {
 
 // ---- main builder ----
 export function buildRound(config, imageFiles = []) {
+  if (LISTENING_MODES.includes(config.mode)) return buildListeningRound(config, imageFiles);
   const {
     mode, letters, syllables, counts, phonemes, stress, pool, words, per,
     splitCards, titles, labelStyle, syllmatch, syllcmp,
@@ -608,6 +612,7 @@ export function classifyCard(card, col) {
 // can resolve just those instead of listing the whole bucket). Empty -> bucket.
 export function cardWordsForConfig(config) {
   const m = config.mode;
+  if (LISTENING_MODES.includes(m)) return [];
   if (m === 'manualsort') {
     const parsed = parseManualSortAnswers(config.answers);
     const words = parsed.flatMap((g) => g.words);

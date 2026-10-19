@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import ColumnsView from './ColumnsView';
 import RowView from './RowView';
 import ContinuumView from './ContinuumView';
 import GenerateView from './GenerateView';
 import StressRevealView from './StressRevealView';
 import RowsyllRowsView from './RowsyllRowsView';
+import ListeningSortView from './ListeningSortView';
 import { buildRound, cardWordsForConfig } from '@/lib/lettersort/rounds';
 import { listAllImagesJpg, resolveImageForWord } from '@/lib/lettersort/storage';
+import { summarizeListeningAttempts } from '@/lib/lettersort/listeningScore.mjs';
 
 const IMG_BUCKET = 'lettersort-images';
 const IMG_PREFIX = '';
@@ -19,7 +21,9 @@ function needsFullList(config) {
   return !w || w.length === 0;
 }
 
-export default function LetterSortActivity({ config, onRoundComplete, isTeacher = false }) {
+const LISTENING_MODES = new Set(['soundmatch', 'syllableposition', 'alliteration']);
+
+export default function LetterSortActivity({ config, onRoundComplete, onAttempt, isTeacher = false }) {
   const [imageFiles, setImageFiles] = useState(null);
   const [err, setErr] = useState('');
   const [warn, setWarn] = useState('');
@@ -90,11 +94,17 @@ export default function LetterSortActivity({ config, onRoundComplete, isTeacher 
   const [roundNonce, setRoundNonce] = useState(0);
   const [roundIndex, setRoundIndex] = useState(0);
   const [cumScore, setCumScore] = useState({ completed: 0, mistakes: 0 });
+  // Listening modes: aggregate across alliteration problems; complete once.
+  const listenAgg = useRef({ correct: 0, wrong: 0, attempts: [], done: new Set(), completed: false });
+  const [listenDone, setListenDone] = useState(null);
+  const isListening = LISTENING_MODES.has(config.mode);
 
   // Reset sequencing when config changes
   useEffect(() => {
     setRoundIndex(0);
     setCumScore({ completed: 0, mistakes: 0 });
+    listenAgg.current = { correct: 0, wrong: 0, attempts: [], done: new Set(), completed: false };
+    setListenDone(null);
   }, [config]);
 
   const round = useMemo(() => buildRound({ ...config, roundIndex }, imageFiles || []), [config, imageFiles, roundNonce, roundIndex]);
@@ -106,6 +116,32 @@ export default function LetterSortActivity({ config, onRoundComplete, isTeacher 
     }
     onRoundComplete?.(result);
   }, [config.mode, onRoundComplete]);
+
+  const handleListeningComplete = useCallback((result) => {
+    const agg = listenAgg.current;
+    const pi = result?.problemIndex ?? 0;
+    if (agg.completed || agg.done.has(pi)) return;
+    agg.done.add(pi);
+    agg.correct += result?.correct || 0;
+    agg.wrong += result?.wrong || 0;
+    agg.attempts.push(...(result?.attempts || []));
+    const total = config.mode === 'alliteration' ? Math.max(1, config.sounds?.length || 1) : 1;
+    if (config.mode === 'alliteration' && pi + 1 < total) {
+      setRoundIndex(pi + 1);
+      return;
+    }
+    agg.completed = true;
+    const final = { ...summarizeListeningAttempts(agg.attempts), attempts: [...agg.attempts], totalProblems: total };
+    setListenDone(final);
+    onRoundComplete?.(final);
+  }, [config, onRoundComplete]);
+
+  const restartListening = () => {
+    listenAgg.current = { correct: 0, wrong: 0, attempts: [], done: new Set(), completed: false };
+    setListenDone(null);
+    setRoundIndex(0);
+    setRoundNonce((n) => n + 1);
+  };
 
   const isRowsyllauto = config.mode === 'rowsyllauto';
   const totalTargets = config.syllables?.length || 0;
@@ -125,6 +161,16 @@ export default function LetterSortActivity({ config, onRoundComplete, isTeacher 
         >
           Reiniciar
         </button>
+      </div>
+    );
+  }
+
+  if (isListening && listenDone && config.mode === 'alliteration') {
+    return (
+      <div className="p-8 text-center" role="status">
+        <div className="text-xl font-bold text-slate-800">¡Completo!</div>
+        <div className="text-sm text-slate-600 mt-1">Correctas {listenDone.correct} · Errores {listenDone.wrong}</div>
+        <button onClick={restartListening} data-testid="button-listening-restart" className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold">Reiniciar</button>
       </div>
     );
   }
@@ -150,6 +196,7 @@ export default function LetterSortActivity({ config, onRoundComplete, isTeacher 
       case 'continuum': return <ContinuumView round={round} config={config} onRoundComplete={onRoundComplete} />;
       case 'generate': return <GenerateView round={round} config={config} />;
       case 'stressreveal': return <StressRevealView round={round} config={config} onRoundComplete={onRoundComplete} />;
+      case 'listening': return <ListeningSortView key={`${roundIndex}-${roundNonce}`} round={round} config={config} onAttempt={onAttempt} onRoundComplete={handleListeningComplete} />;
       case 'rowsyllrows': return <RowsyllRowsView round={round} config={config} onRoundComplete={onRoundComplete} />;
       default: return <div className="p-6 text-slate-500">Modo no soportado.</div>;
     }

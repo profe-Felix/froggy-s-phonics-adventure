@@ -1,0 +1,19 @@
+{
+  "name": "LetterSortResult",
+  "type": "object",
+  "properties": {
+    "run_id": { "type": "string" },
+    "class_name": { "type": "string" },
+    "student_number": { "type": "integer" },
+    "mode": { "type": "string", "enum": ["soundmatch", "syllableposition", "alliteration"] },
+    "targets": { "type": "string" },
+    "attempts_data": { "type": "string", "description": "JSON placement timeline, including wrong and repeated attempts; no audio or image bytes." },
+    "correct": { "type": "integer", "default": 0 },
+    "wrong": { "type": "integer", "default": 0 },
+    "first_try_correct": { "type": "integer", "default": 0 },
+    "completed": { "type": "boolean", "default": false },
+    "submitted_at": { "type": "string" }
+  },
+  "required": ["run_id", "class_name", "student_number", "mode"],
+  "rls": { "create": null, "read": null, "update": null, "delete": { "user_condition": { "role": "admin" } } }
+}

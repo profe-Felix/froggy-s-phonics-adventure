@@ -6,6 +6,12 @@ import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
 import { buildConfig } from '@/lib/lettersort/rounds';
 import { MODES, presetModeKey } from '@/lib/lettersort/presetConfig';
 import { FIELDS, TOGGLES, paramOf } from '@/lib/lettersort/fields';
+import ListeningSortResults from '@/components/lettersort/ListeningSortResults';
+import { useListeningSortResults } from '@/hooks/useListeningSortResults';
+import ListeningHeaderEditor from '@/components/lettersort/ListeningHeaderEditor';
+
+const LISTENING_KEYS = new Set(['soundmatch', 'syllableposition', 'alliteration']);
+const HEADER_FIELDS = new Set(['headers', 'headerimages']);
 
 // Letter Sort ("Clasificador de letras") — a faithful wrapper around the
 // original self-contained reference tool (hosted at /lettersort/index.html).
@@ -27,6 +33,9 @@ const LOCAL_EXAMPLES = {
   _ex_stressreveal_12: { label: 'Ejemplo · revelar tónica (1-2)', mode: 'stressreveal', stress: '1,2', words: 'gato,casa,perro,sopa', builtin: true },
   _ex_row_onset: { label: 'Ejemplo · filas: igual sonido inicial', mode: 'row', rows: 'gato~gusano; perro~pez', rowtitle: true, builtin: true },
   _ex_rowalli_mp: { label: 'Ejemplo · aliteración M / P', mode: 'rowalli', rows: 'manzana,mayo,mano; pana,pato,piso', rowtitle: true, builtin: true },
+  _ex_soundmatch: { label: 'Ejemplo · mismo sonido inicial (tomate~tren,dado)', mode: 'soundmatch', rows: 'tomate~tren,dado; gato~gusano,mesa; ratón~rosa,pato', builtin: true },
+  _ex_syllableposition_t: { label: 'Ejemplo · t al principio / al final', mode: 'syllableposition', consonant: 't', headers: 'tigre,zapato', builtin: true },
+  _ex_alliteration_tgr: { label: 'Ejemplo · aliteración t, g, r (3 problemas)', mode: 'alliteration', sounds: 't,g,r', builtin: true },
   _ex_allisyll_masa: { label: 'Ejemplo · sílabas ma / sa', mode: 'allisyll', rows: 'mama,mapa,mano; salsa,sapo,sano', rowtitle: true, builtin: true },
 };
 
@@ -51,6 +60,13 @@ function buildQuery(modeKey, vals, remotePreset) {
       else parts.push(`${t.key}=true`);
     }
   }
+  // syllableposition header images are edited by ListeningHeaderEditor; make
+  // sure they serialize even if not listed among the mode's generic fields.
+  if (modeKey === 'syllableposition') {
+    for (const f of ['headers', 'headerimages']) {
+      if (!(mode?.fields || []).includes(f) && vals[f]) parts.push(`${encodeURIComponent(paramOf(f))}=${encodeURIComponent(String(vals[f]))}`);
+    }
+  }
   if (vals.advanced) parts.push(vals.advanced.trim());
   return parts.join('&');
 }
@@ -71,6 +87,8 @@ function readInitialState() {
     if (raw === 'true') vals[t.key] = true;
   }
   if (qs.get('labelstyle') === 'emoji') vals.emoji = true;
+  if (vals.headerimages === undefined && qs.get('headerimages')) vals.headerimages = qs.get('headerimages');
+  if (vals.headers === undefined && qs.get('headers')) vals.headers = qs.get('headers');
   if (qs.get('advanced')) vals.advanced = qs.get('advanced');
   const preset = qs.get('preset') || '';
   const modeParam = (qs.get('mode') || '').toLowerCase();
@@ -96,7 +114,7 @@ function presetLabel(obj, key) {
 }
 
 export default function LetterSort() {
-  const params = new URLSearchParams(window.location.search);
+  const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const isTeacher = params.get('role') === 'teacher';
   const initial = useMemo(readInitialState, []);
   const [modeKey, setModeKey] = useState(initial.modeKey);
@@ -151,9 +169,11 @@ export default function LetterSort() {
   // keep the page URL in sync so refresh / share preserves the current config
   useEffect(() => {
     const role = isTeacher ? 'teacher' : 'student';
-    const u = `${window.location.pathname}?role=${role}&${query}`;
+    const identity = new URLSearchParams();
+    for (const key of ['class', 'number']) if (params.get(key)) identity.set(key, params.get(key));
+    const u = `${window.location.pathname}?role=${role}&${query}${identity.size ? `&${identity}` : ''}`;
     window.history.replaceState(null, '', u);
-  }, [query, isTeacher]);
+  }, [query, isTeacher, params]);
 
   const setField = (k, v) => setVals((p) => ({ ...p, [k]: v }));
   const mode = MODES.find((m) => m.key === modeKey);
@@ -172,11 +192,15 @@ export default function LetterSort() {
       const mv = { ...vals };
       for (const f of (m?.fields || [])) if (obj[f] !== undefined) mv[f] = obj[f];
       for (const t of TOGGLES) if (obj[t.key] !== undefined) mv[t.key] = obj[t.key];
+      if (mk === 'syllableposition') { mv.headers = obj.headers || ''; mv.headerimages = obj.headerimages || ''; }
       setVals(mv);
     }
   };
 
   const shareUrl = `${window.location.origin}/LetterSort?role=student&${query}`;
+  const tracking = useListeningSortResults({
+    config, isTeacher, studentClass: params.get('class'), studentNumber: params.get('number'),
+  });
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f7f8fc', fontFamily: "'Andika', system-ui, sans-serif" }}>
@@ -188,7 +212,7 @@ export default function LetterSort() {
         )}
       </div>
 
-      {(isTeacher || modeKey !== 'familyany') && <div className="p-3 bg-white border-b">
+      {(isTeacher || (modeKey !== 'familyany' && !LISTENING_KEYS.has(modeKey))) && <div className="p-3 bg-white border-b">
         <div className="max-w-4xl mx-auto flex flex-wrap gap-3 items-end">
           <div className="flex flex-col">
             <label className="text-xs font-bold text-gray-600">Tipo de sort</label>
@@ -216,7 +240,11 @@ export default function LetterSort() {
             </select>
           </div>
 
+          {showFields && modeKey === 'syllableposition' && (
+            <ListeningHeaderEditor headers={vals.headers} headerimages={vals.headerimages} onChange={(o) => setVals((p) => ({ ...p, ...o }))} />
+          )}
           {showFields && mode.fields.map((f) => {
+            if (modeKey === 'syllableposition' && HEADER_FIELDS.has(f)) return null;
             const cfg = FIELDS[f];
             if (!cfg) return null;
             return (
@@ -241,7 +269,7 @@ export default function LetterSort() {
           })}
         </div>
 
-        {showFields && modeKey !== 'familyany' && (
+        {showFields && modeKey !== 'familyany' && !LISTENING_KEYS.has(modeKey) && (
           <div className="max-w-4xl mx-auto mt-2">
             <button
               type="button"
@@ -268,7 +296,12 @@ export default function LetterSort() {
         )}
       </div>}
 
-      <LetterSortActivity config={config} query={query} isTeacher={isTeacher} />
+      <LetterSortActivity config={config} query={query} isTeacher={isTeacher}
+        onAttempt={tracking.onAttempt} onRoundComplete={tracking.onComplete} />
+      {tracking.status && <p role="status" className="mx-3 text-xs text-slate-600">{tracking.status}</p>}
+      {!isTeacher && ['soundmatch', 'syllableposition', 'alliteration'].includes(config.mode) && !tracking.enabled &&
+        <p className="mx-3 text-xs text-amber-800">Modo de práctica: para guardar resultados por estudiante, abre desde tu lección o usa un enlace con class y number.</p>}
+      {isTeacher && <ListeningSortResults />}
 
       {showQr && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowQr(false)}>

@@ -4,6 +4,9 @@ import { FIELDS, TOGGLES, paramOf } from '@/lib/lettersort/fields';
 import { base44 } from '@/api/base44Client';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import TtsWordGenerator from './TtsWordGenerator';
+import ListeningHeaderEditor from './ListeningHeaderEditor';
+
+const HEADER_FIELDS = new Set(['headers', 'headerimages']);
 
 // Load a preset config into editor field values, scoped to the given mode's
 // fields so config keys like `rows` don't collide between row and generate modes.
@@ -20,6 +23,10 @@ function valsFromConfig(config, modeKey) {
   }
   for (const t of TOGGLES) {
     if (config[t.key]) v[t.key] = true;
+  }
+  if (modeKey === 'syllableposition') {
+    if (config.headers !== undefined) v.headers = Array.isArray(config.headers) ? config.headers.join(',') : String(config.headers);
+    if (config.headerimages !== undefined) v.headerimages = Array.isArray(config.headerimages) ? config.headerimages.join('|') : String(config.headerimages);
   }
   return v;
 }
@@ -51,6 +58,14 @@ function configFromVals(modeKey, vals, originalConfig) {
   for (const t of TOGGLES) {
     if (vals[t.key]) cfg[t.key] = true;
     else delete cfg[t.key];
+  }
+  if (modeKey === 'syllableposition') {
+    // Header editor owns these keys; uploaded images are public URLs only.
+    for (const k of ['headers', 'headerimages']) {
+      const v = String(vals[k] || '').trim();
+      if (k === 'headerimages' && /data:/i.test(v)) continue;
+      if (v && v.replace(/[,|]/g, '').trim()) cfg[k] = v; else delete cfg[k];
+    }
   }
   return cfg;
 }
@@ -147,8 +162,12 @@ export default function LetterSortPresetEditor({ presetKey, onClose, onSaved }) 
             <span className="text-xs text-gray-500 mt-1 block">{mode?.desc}</span>
           </label>
 
+          {modeKey === 'syllableposition' && (
+            <ListeningHeaderEditor headers={vals.headers} headerimages={vals.headerimages} onChange={(o) => setVals((p) => ({ ...p, ...o }))} />
+          )}
           <div className="flex flex-wrap gap-2">
             {mode?.fields.map((f) => {
+              if (modeKey === 'syllableposition' && HEADER_FIELDS.has(f)) return null;
               const cfg = FIELDS[f];
               if (!cfg) return null;
               return (
