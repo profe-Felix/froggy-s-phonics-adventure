@@ -35,6 +35,7 @@ import ActivityPresets from './pages/ActivityPresets';
 import LetterRecognition from './pages/LetterRecognition';
 import LiveLesson from './pages/LiveLesson';
 import LiveNotebook from './pages/LiveNotebook';
+import NotebookDashboardPreview from './pages/NotebookDashboardPreview';
 import LiveTracing from './pages/LiveTracing';
 import LiveTracingStudent from './pages/LiveTracingStudent';
 import TracingSizePreview from './pages/TracingSizePreview';
@@ -171,6 +172,7 @@ const AuthenticatedApp = () => {
       <Route path="/LetterRecognition" element={<LetterRecognition />} />
       <Route path="/LiveLesson" element={<LiveLesson />} />
       <Route path="/LiveNotebook" element={<LiveNotebook />} />
+      <Route path="/NotebookDashboardPreview" element={<NotebookDashboardPreview />} />
       <Route path="/LiveTracing" element={<LiveTracing />} />
       <Route path="/LiveTracingStudent" element={<LiveTracingStudent />} />
       <Route path="/TracingSizePreview" element={<TracingSizePreview />} />
