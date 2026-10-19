@@ -40,8 +40,9 @@ export async function prepareNotebookRequest(client, body, root, rootKey, origin
     className = source?.class_name; schoolYear = source?.school_year; assignmentId = source?.assignment_id;
     if (body.kind === "lesson") {
       const lesson = await (source?.lesson_source === "small_group" ? entities.SmallGroupLesson : entities.Lesson).get(source?.lesson_id);
-      const steps = savedLessonSteps(lesson, source?.selected_day || "");
-      assignmentId = steps[Number(body.stepId ?? source?.current_step ?? 0)]?.config?.assignmentId;
+      const steps = savedLessonSteps(lesson, source?.lesson_day || "");
+      const step = steps[Number(body.stepId ?? source?.current_step ?? 0)];
+      assignmentId = step?.mode === "digital_notebook" ? step.config?.assignmentId : undefined;
     }
   }
   if (!["Felix", "Valero", "Campos", "Gutierrez"].includes(className) ||

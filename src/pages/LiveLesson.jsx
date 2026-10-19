@@ -18,10 +18,11 @@ import { COLOR_GROUPS } from '@/lib/smallGroupColors';
 import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 import { lessonStepPages, liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
+import { lessonNotebookTargets } from '@/lib/liveLessonLifecycle.mjs';
 
 // Teacher lesson context for external notebook control sync.
 // Built from the saved live session; only called for notebook steps.
-function teacherLessonContext(session, step) {
+function teacherLessonContext(session, step, stepIndex = session.current_step) {
   if (!session?.id) return null;
 
   const phase = session.phase || "watch";
@@ -34,7 +35,7 @@ function teacherLessonContext(session, step) {
     assignmentId: step?.config?.assignmentId,
     className: session.class_name,
     schoolYear: session.school_year,
-    stepId: String(session.current_step ?? 0),
+    stepId: String(stepIndex ?? 0),
     targetStudents: session.target_students,
     phase,
     releaseMode,
@@ -132,6 +133,10 @@ export default function LiveLesson() {
   // step/phase values instead of the stale ones captured at setup.
   const sessionRef = useRef(session);
   const controlsQueueRef = useRef(new Map());
+  const visitedNotebooksRef = useRef(new Map());
+  const endedSessionsRef = useRef(new Set());
+  const [pendingNotebookEnd, setPendingNotebookEnd] = useState(null);
+  const notebookCleanupRunning = useRef(false);
   const [controlError, setControlError] = useState("");
   const [controlsSaving, setControlsSaving] = useState(false);
   const { classList: CLASSES } = useClassNames();
@@ -237,7 +242,8 @@ export default function LiveLesson() {
     (async () => {
       try {
         const s = await base44.entities.LiveLessonSession.get(sessionParam);
-        if (cancelled || !s || !s.active) return;
+        if (cancelled || !s || !s.active || endedSessionsRef.current.has(s.id)) return;
+        sessionRef.current = s;
         setSession(s);
         if (s.lesson_source === 'small_group') {
           setSelectedSGLessonId(s.lesson_id);
@@ -339,7 +345,7 @@ export default function LiveLesson() {
       if (!current || current.id !== session.id) return;
 
       if (event.type === 'delete') {
-        setControlError('This lesson was deleted in Base44. Notebook shutdown could not be confirmed. Do not start another lesson until the connection is checked.');
+        leaveEndedSession(current.id);
         return;
       }
 
@@ -350,7 +356,7 @@ export default function LiveLesson() {
         const ended = { ...current, active: false };
         sessionRef.current = ended;
         setSession(ended);
-        setControlError('This lesson was ended in Base44. Press End to confirm notebook shutdown before leaving this screen.');
+        void endSession();
         return;
       }
 
@@ -409,7 +415,7 @@ export default function LiveLesson() {
         await base44.entities.LiveLessonSession.update(
           s.id,
           {
-            active: true,
+            teacher_heartbeat_at: new Date().toISOString(),
           }
         );
       } catch {
@@ -565,22 +571,17 @@ export default function LiveLesson() {
             selectedLesson,
             confirmed.lesson_day || selectedLessonDay
           );
-          const notebookAssignments = new Map();
-
-          // Include notebook assignments elsewhere in the lesson so moving
-          // away from a notebook, ending, and self-paced work are not skipped.
-          for (const step of steps) {
-            if (step?.mode === 'digital_notebook' && step.config?.assignmentId) {
-              notebookAssignments.set(step.config.assignmentId, step);
-            }
-          }
+          let visited = visitedNotebooksRef.current.get(id);
+          if (!visited) visitedNotebooksRef.current.set(id, visited = new Set());
+          const targets = lessonNotebookTargets(confirmed, steps, visited);
+          for (const { index } of targets) visited.add(index);
 
           // The backend must read the saved lesson to authorize and apply
           // its current state. This context only selects the integration.
           // Disabled integrations skip without making a backend request.
-          for (const notebookStep of notebookAssignments.values()) {
+          for (const { step: notebookStep, index } of targets) {
             await syncExternalNotebookControls(
-              teacherLessonContext(confirmed, notebookStep)
+              teacherLessonContext(confirmed, notebookStep, index)
             );
           }
         } catch {
@@ -702,37 +703,89 @@ export default function LiveLesson() {
     });
   };
 
-  const endSession = async () => {
-    const current = sessionRef.current;
-    if (!current?.id) return;
-
-    // Keep the existing parallel dictation shutdown.
-    const [saved] = await Promise.all([
-      updateSession({ active: false }),
-      endClassDictation(),
-    ]);
-
-    // Keep the screen and Retry controls available if saving or sync failed.
-    if (saved !== true) return;
-    if (sessionRef.current?.id !== current.id) return;
-
-    controlsQueueRef.current.delete(current.id);
+  function leaveEndedSession(id) {
+    if (sessionRef.current?.id !== id) return;
+    endedSessionsRef.current.add(id);
+    controlsQueueRef.current.delete(id);
+    visitedNotebooksRef.current.delete(id);
     sessionRef.current = null;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('session');
+    window.history.replaceState(null, '', `${window.location.pathname}${params.size ? `?${params}` : ''}`);
     setSession(null);
     setControlError('');
     setSelectedLessonId('');
     setSelectedSGLessonId('');
-    setClassName('');
     setSelectedGroups([]);
     setTargetMode('class');
     setShowQR(false);
+    setShowDashboard(false);
+  }
+
+  const retryNotebookEnd = async () => {
+    const pending = pendingNotebookEnd;
+    if (!pending || notebookCleanupRunning.current) return;
+    notebookCleanupRunning.current = true;
+    try {
+      for (const context of pending.contexts) await syncExternalNotebookControls(context);
+      const completed = new Set(pending.contexts.map(context => `${context.sourceId}:${context.assignmentId}`));
+      setPendingNotebookEnd(value => {
+        const contexts = (value?.contexts || []).filter(context => !completed.has(`${context.sourceId}:${context.assignmentId}`));
+        return contexts.length ? { contexts } : null;
+      });
+    } catch {
+      // The Base44 lesson is already ended. Retain this explicit retry without
+      // trapping the teacher in the old activity or reactivating students.
+      setPendingNotebookEnd(value => value === pending ? { ...value } : value);
+    } finally {
+      notebookCleanupRunning.current = false;
+    }
   };
+
+  const endSession = async () => {
+    const current = sessionRef.current;
+    if (!current?.id) return;
+    clearBroadcast(false);
+    const steps = getLiveLessonSteps(selectedLesson, current.lesson_day || selectedLessonDay);
+    const contexts = lessonNotebookTargets(current, steps, visitedNotebooksRef.current.get(current.id))
+      .map(({ step, index }) => teacherLessonContext({ ...current, active: false }, step, index));
+
+    // Keep the existing parallel dictation shutdown.
+    const [saved] = await Promise.all([
+      updateSession({ active: false, broadcast_state: {} }),
+      endClassDictation(),
+    ]);
+
+    // A failed Base44 save must stay visible. Once inactive is acknowledged,
+    // notebook cleanup can be retried from setup without trapping the class.
+    const confirmed = controlsQueueRef.current.get(current.id)?.confirmed;
+    if (saved !== true && confirmed?.active !== false) return;
+    if (sessionRef.current?.id !== current.id) return;
+    if (saved !== true && contexts.length) setPendingNotebookEnd(previous => ({
+      contexts: [...(previous?.contexts || []), ...contexts],
+    }));
+    leaveEndedSession(current.id);
+  };
+
+  useEffect(() => {
+    if (!pendingNotebookEnd) return;
+    const timer = setTimeout(() => { void retryNotebookEnd(); }, 10000);
+    return () => clearTimeout(timer);
+  }, [pendingNotebookEnd]);
 
   // ---------- SETUP SCREEN ----------
   if (!session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 p-6">
         <div className="max-w-2xl mx-auto">
+          {pendingNotebookEnd && (
+            <div role="status" className="mb-4 rounded-lg bg-amber-100 p-3 text-sm">
+              The lesson has ended. Notebook connection cleanup is still pending; student work was not cleared.
+              <button type="button" className="ml-2 underline font-bold" onClick={retryNotebookEnd}>
+                Retry notebook cleanup
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 mb-6">
             <Link

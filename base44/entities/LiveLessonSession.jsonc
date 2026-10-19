@@ -2,6 +2,10 @@
   "name": "LiveLessonSession",
   "type": "object",
   "properties": {
+    "teacher_heartbeat_at": {
+      "type": "string",
+      "description": "Teacher presence timestamp; heartbeats never change the active flag."
+    },
     "code": {
       "type": "string",
       "description": "Short join code students enter or scan via QR"

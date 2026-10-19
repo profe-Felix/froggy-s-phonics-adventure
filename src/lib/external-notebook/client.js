@@ -149,6 +149,7 @@ export async function syncExternalNotebookControls(context) {
   // every student or from a general render/useEffect/subscription callback.
   const data = unwrap(await invokeNotebookFunction("externalNotebookControl", {
     kind: context.kind, sourceId: context.sourceId,
+    ...(context.kind === "lesson" ? { stepId: context.stepId } : {}),
     requestId: crypto.randomUUID(),
   }, context));
   if (data.contractVersion !== 1 || data.applied !== true ||

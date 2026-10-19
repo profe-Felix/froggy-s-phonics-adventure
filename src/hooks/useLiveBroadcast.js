@@ -45,7 +45,13 @@ export function useLiveBroadcast(sessionId, initialBroadcast) {
           }
         }
       );
-    return () => { alive = false; unsub?.(); };
+    return () => {
+      alive = false;
+      unsub?.();
+      pendingRef.current = null;
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    };
   }, [sessionId]);
 
   const send = useCallback((state) => {

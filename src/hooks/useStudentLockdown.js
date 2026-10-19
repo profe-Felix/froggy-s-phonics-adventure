@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { requestWithRetry, wait } from '@/lib/classroomSync';
 import { useAssessmentSessions } from '@/hooks/useAssessmentSessions';
+import { mergeLiveSession } from '@/lib/liveLessonLifecycle.mjs';
 
 const TYPES = [
   'DeskSeat',
@@ -108,7 +109,9 @@ export function useStudentLockdown({
       if (existing) {
         // Partial payloads cannot erase fields; heartbeat and broadcast
         // changes update the cache without any follow-up REST requests.
-        const merged = { ...existing, ...data, id };
+        const merged = type === 'LiveLessonSession'
+          ? mergeLiveSession(existing, { ...data, id })
+          : { ...existing, ...data, id };
 
         qc.setQueryData(
           keys[i],

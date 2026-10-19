@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
+import { mergeLiveSession } from '@/lib/liveLessonLifecycle.mjs';
 import { useQuery } from '@tanstack/react-query';
 import LessonModeRouter from '@/components/lesson/LessonModeRouter';
 import StudentMirrorPanel from './StudentMirrorPanel';
@@ -104,7 +105,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     const apply = fresh => {
       if (!alive || !fresh || typeof fresh !== 'object' || Array.isArray(fresh) ||
           (fresh.id !== undefined && fresh.id !== sessionId)) return Promise.resolve(false);
-      desiredSession = { ...desiredSession, ...fresh };
+      desiredSession = mergeLiveSession(desiredSession, fresh);
       clearTimeout(transitionRetry);
       const generation = ++transitionGeneration;
       transitionRef.current = transitionRef.current.catch(() => {}).then(async () => {
@@ -168,7 +169,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
             return retry('The lesson destination changed. Keeping this page open and retrying.');
           }
           try {
-            if (typeof exit !== 'function' || await exit() === false) {
+            if (typeof exit !== 'function' || await exit(sessionId) === false) {
               throw new Error('The lesson could not exit.');
             }
             return true;

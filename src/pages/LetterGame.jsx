@@ -34,6 +34,7 @@ import GameHome from '../components/lesson/GameHome';
 import LiveLessonStudent from '@/components/live/LiveLessonStudent';
 import AssessmentOverlay from '@/components/smallgroup/AssessmentOverlay';
 import { useStudentLockdown } from '@/hooks/useStudentLockdown';
+import { markLiveSessionEnded } from '@/lib/liveLessonLifecycle.mjs';
 import { useClassColors } from '@/hooks/useClassColors';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
@@ -99,6 +100,19 @@ export default function LetterGame() {
   }, [currentMode]);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
+  const [endedLiveSessions, setEndedLiveSessions] = useState(() => new Set());
+  const liveExitQueryClient = useQueryClient();
+  const handleLiveSessionExit = useCallback(id => {
+    // Patch the parent cache before unmounting. Otherwise enabling lockdown
+    // again immediately reselects its stale "active" record and flickers.
+    liveExitQueryClient.setQueriesData(
+      { queryKey: ['student-lockdown-v2', 'LiveLessonSession'] },
+      records => markLiveSessionEnded(records, id)
+    );
+    setEndedLiveSessions(previous => new Set([...previous, id]));
+    setLiveSession(current => current?.id === id ? null : current);
+    return true;
+  }, [liveExitQueryClient]);
   const queryClient = useQueryClient();
   const studentQueryKey = ['student-selection', selectedStudent?.class_name, selectedStudent?.number, urlYear || ACTIVE_SCHOOL_YEAR];
   const { languageFor, configs, tracingOnlyFor, error: classConfigError, retry: retryClassConfig } = useClassColors();
@@ -159,7 +173,7 @@ export default function LetterGame() {
 
   const eligibleLiveSessions = studentEntryReady
     ? (activeLiveSessions || []).filter(s => {
-        if (s.active !== true || s.class_name !== studentData.class_name) return false;
+        if (endedLiveSessions.has(s.id) || s.active !== true || s.class_name !== studentData.class_name) return false;
         if (s.school_year !== studentData.school_year) return false;
         const targets = s.target_students ?? [];
         if (!Array.isArray(targets)) return false;
@@ -662,7 +676,7 @@ export default function LetterGame() {
         selectedStudent={selectedStudent}
         onUpdateProgress={handleUpdateProgress}
         onStudentPatch={handleStudentPatch}
-        onExit={() => setLiveSession(null)}
+        onExit={handleLiveSessionExit}
       />
     );
   }

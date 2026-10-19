@@ -22,7 +22,8 @@ export default async function(req: Request) {
   try { body = await req.json(); } catch { return reply("Invalid request.", 400); }
   const verifyOnly = body?.action === "verifyTeacher";
   if (!body || typeof body !== "object" || Array.isArray(body) ||
-      Object.keys(body).some(key => !(verifyOnly ? ["kind", "action", "assignmentId", "className", "schoolYear"] : ["kind", "sourceId", "requestId"]).includes(key)) ||
+      Object.keys(body).some(key => !(verifyOnly ? ["kind", "action", "assignmentId", "className", "schoolYear"] : ["kind", "sourceId", "requestId", ...(body.kind === "lesson" ? ["stepId"] : [])]).includes(key)) ||
+      (body.stepId !== undefined && (typeof body.stepId !== "string" || !/^(0|[1-9]\d{0,3})$/.test(body.stepId))) ||
       !["assessment", "lesson"].includes(body.kind) || (!verifyOnly && (!id(body.sourceId) ||
       typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)))) {
     return reply("A valid assessment control request is required.", 400);

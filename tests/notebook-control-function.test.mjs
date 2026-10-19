@@ -26,6 +26,10 @@ function fixture(t) {
       assignment_id: "assignment", active: true, paused: false, release_mode: "follow",
       current_page: 9, total_pages: 206, target_students: [], finished_students: [],
       created_date: "2026-10-18T10:00:00.000Z", updated_date: "2026-10-18T10:00:01.000Z" },
+    lesson: { id: "lesson", daily_lessons: [
+      { day: "monday", steps: [{ mode: "letter_tracing" }, { mode: "digital_notebook", config: { assignmentId: "assignment", pageStart: 2 } }, { mode: "letter_sort" }] },
+      { day: "tuesday", steps: [{ mode: "letter_sort" }] },
+    ] },
     assignment: { id: "assignment", class_name: "Class", status: "active", pdf_page_count: 206 },
     upstreamStatus: 200, upstream: { contractVersion: 1, applied: true, controlRevision: 2, sourceId: "assessment" },
   };
@@ -36,6 +40,8 @@ function fixture(t) {
       auth: { me: async () => { if (h.authError) throw new Error("private auth detail"); return h.user; } },
       asServiceRole: { entities: {
         LiveNotebookAssessment: { get: async id => { h.reads.push(["assessment", id]); return h.assessment; } },
+        LiveLessonSession: { get: async id => { h.reads.push(["lessonSession", id]); return h.lessonSession; } },
+        Lesson: { get: async id => { h.reads.push(["lesson", id]); return h.lesson; } },
         DigitalNotebookAssignment: { get: async id => { h.reads.push(["assignment", id]); return h.assignment; } },
       } },
     };
@@ -72,10 +78,41 @@ test("teacher authentication and explicit per-class authorization precede servic
 });
 test("browser-supplied policy, roles, timestamps and forged mappings are rejected", async t => {
   const h = fixture(t);
-  for (const patch of [{ currentPage: 3 }, { role: "admin" }, { className: "Other" }, { sourceUpdatedAtMs: 123 }, { requestId: "invalid" }]) {
+  for (const patch of [{ currentPage: 3 }, { role: "admin" }, { className: "Other" }, { sourceUpdatedAtMs: 123 }, { requestId: "invalid" }, { stepId: "1" },
+    { kind: "lesson", stepId: "01" }, { kind: "lesson", stepId: 1 }]) {
     assert.equal((await h.call(patch)).status, 400);
   }
   assert.equal(h.reads.length, 0); assert.equal(h.requests.length, 0);
+});
+
+test("lesson cleanup selects a saved notebook step even after moving to non-notebook work", async t => {
+  const h = fixture(t);
+  Object.assign(h.config, {
+    appId: "6972eada24fac6b62ccbab8e", className: "Felix", schoolYear: "26-27",
+    assignmentId: "69d650c08c922889cd55c561",
+  });
+  h.authError = true;
+  Object.assign(h.assignment, { id: h.config.assignmentId, class_name: "Felix" });
+  h.lesson.daily_lessons[0].steps[1].config.assignmentId = h.config.assignmentId;
+  h.lessonSession = {
+    id: "lesson-session", lesson_id: "lesson", lesson_day: "monday", class_name: "Felix",
+    school_year: "26-27", current_step: 2, active: true, release_mode: "stay", phase: "watch",
+    created_date: "2026-10-19T10:00:00.000Z", updated_date: "2026-10-19T10:00:01.000Z",
+  };
+  h.upstream.sourceId = "lesson-session";
+  const request = { kind: "lesson", sourceId: "lesson-session", stepId: "1" };
+  assert.equal((await h.call(request)).status, 200);
+  assert.equal(h.requests[0].body.kind, "lesson");
+  assert.equal(h.requests[0].body.status, "ended");
+  assert.equal(h.requests[0].body.lessonStepIndex, 2);
+  // No browser override can turn the letter-sort step into a notebook.
+  h.requests.length = 0;
+  assert.equal((await h.call({ ...request, stepId: "2" })).status, 503);
+  assert.equal(h.requests.length, 0);
+  // Saved day wins even if another weekday has no notebook.
+  h.lessonSession.lesson_day = "tuesday";
+  assert.equal((await h.call(request)).status, 503);
+  assert.equal(h.requests.length, 0);
 });
 test("fresh trusted records determine the exact fixed-origin request and matching acknowledgment", async t => {
   const h = fixture(t);
