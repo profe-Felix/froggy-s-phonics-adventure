@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import useDailyFluency from '@/hooks/useDailyFluency';
+import FluencyGrid from '@/components/workstations/FluencyGrid';
+import { Navigate, useLocation } from 'react-router-dom';
 
 const TYPES = [
   { value: 'letters', label: 'Letras' },
@@ -9,6 +11,16 @@ const TYPES = [
 ];
 
 export default function DailyFluency() {
+  const location = useLocation();
+  if (location.pathname === '/DailyFluency') {
+    const params = new URLSearchParams(location.search);
+    params.set('daily', '1');
+    return <Navigate replace to={`/FluencyTable?${params}`} />;
+  }
+  return <DailyFluencyPractice />;
+}
+
+function DailyFluencyPractice() {
   const {
     lessons = [], lessonId, setLessonId, day, setDay, days = [], type, setType,
     items = [], positionLabel, books = [], wordStatus, loading, error, retry,
@@ -17,21 +29,15 @@ export default function DailyFluency() {
   } = useDailyFluency();
 
   const [index, setIndex] = useState(0);
+  const [seed, setSeed] = useState(Date.now);
+  const [sweep, setSweep] = useState({ row: 0, start: '' });
   const [copied, setCopied] = useState('');
-  const cellRefs = useRef([]);
-  const total = items.length;
+  const total = items.length ? 30 : 0;
   const itemsKey = `${lessonId}|${day}|${type}|${items.join('\u0001')}`;
+  const preset = useMemo(() => ({ id: itemsKey, title: positionLabel, rows: 5, cols: 6, sweep_ms: 800, content: items }), [itemsKey]);
 
   useEffect(() => { document.title = 'Fluidez diaria · Edu Aventura'; }, []);
-  useEffect(() => { setIndex(0); }, [itemsKey]);
-
-  useEffect(() => {
-    const el = cellRefs.current[index];
-    if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  }, [index, itemsKey]);
-
-  const prev = () => setIndex((i) => Math.max(0, i - 1));
-  const next = () => setIndex((i) => Math.min(total - 1, i + 1));
+  useEffect(() => { setIndex(0); setSweep({ row: 0, start: '' }); }, [itemsKey]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -39,8 +45,8 @@ export default function DailyFluency() {
       const tag = t?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return;
       if (e.altKey || e.ctrlKey || e.metaKey || !total) return;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(total - 1, i + 1)); }
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(0, i - 1)); }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); setSweep({ row: 0, start: '' }); setIndex((i) => Math.min(total - 1, i + 1)); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); setSweep({ row: 0, start: '' }); setIndex((i) => Math.max(0, i - 1)); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -59,7 +65,6 @@ export default function DailyFluency() {
   const onReset = async () => { try { await resetWords?.(); } catch { /* surfaced via saveError */ } };
 
   const selectCls = 'px-3 py-2 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500';
-  const current = items[index];
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ background: '#fafbff', fontFamily: "'Andika', system-ui, sans-serif" }}>
@@ -134,33 +139,15 @@ export default function DailyFluency() {
           </section>
         ) : (
           <section className="bg-white border rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <button type="button" onClick={prev} disabled={index === 0} aria-label="Anterior"
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed">← Anterior</button>
-              <div className="text-center">
-                <p className="text-sm text-slate-500 font-bold" aria-live="polite">{index + 1} / {total}</p>
-                {positionLabel && <p className="text-xs text-slate-500">{positionLabel}</p>}
-              </div>
-              <button type="button" onClick={next} disabled={index >= total - 1} aria-label="Siguiente"
-                className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed">Siguiente →</button>
+            <div className="flex justify-between items-center">
+              <span className="font-bold">{positionLabel}</span>
+              <button type="button" className="border rounded-lg px-3 py-2 font-bold"
+                onClick={() => { setSeed(Date.now()); setIndex(0); setSweep({ row: 0, start: '' }); }}>Shuffle</button>
             </div>
-            <p className="text-center font-bold text-slate-900 py-2" style={{ fontSize: 'clamp(2.5rem,9vw,5rem)' }} aria-label={`Elemento actual: ${current}`}>{current}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
-              {items.map((text, i) => (
-                <button
-                  key={`${i}-${text}`}
-                  ref={(el) => { cellRefs.current[i] = el; }}
-                  type="button"
-                  onClick={() => setIndex(i)}
-                  aria-current={i === index ? 'true' : undefined}
-                  aria-label={`${i + 1}: ${text}`}
-                  className={`rounded-xl border flex items-center justify-center px-2 transition font-bold ${i === index ? 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-500 text-slate-900' : 'bg-white text-slate-800 hover:bg-slate-50'}`}
-                  style={{ aspectRatio: '3 / 2', fontSize: 'clamp(1.1rem,2.2vw,1.9rem)' }}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
+            <FluencyGrid preset={preset} seed={seed} activeCell={index}
+              activeRow={sweep.row} sweepStartAt={sweep.start}
+              onSelectCell={i => { setIndex(i); setSweep({ row: 0, start: '' }); }}
+              onPlayRow={row => { setIndex(row * 6); setSweep({ row, start: new Date().toISOString() }); }} />
             <p className="text-xs text-slate-500 text-center">Use las flechas del teclado o toque un recuadro.</p>
           </section>
         )}

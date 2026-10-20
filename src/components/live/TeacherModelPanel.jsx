@@ -13,6 +13,7 @@ import SoundWallModelCanvas from './SoundWallModelCanvas';
 import GoogleSlidesModelPanel from './GoogleSlidesModelPanel';
 import DictadoLivePanel from './DictadoLivePanel';
 import Student30Preview from './Student30Preview';
+import { FluencyLessonTeacher } from './FluencyLessonTable';
 
 // Teacher's side: renders the model panel for the current step so the teacher
 // can drive/preview the activity during the "I do" phase. Video, Elkonin
@@ -23,7 +24,7 @@ function parseItems(text) {
   return String(text || '').split(/\n/).map(s => s.trim()).filter(Boolean).map(t => ({ text: t }));
 }
 
-export default function TeacherModelPanel({ step, stepIndex, send, className, lesson }) {
+export default function TeacherModelPanel({ step, stepIndex, send, className, lesson, liveSessionId }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
 
   // Auto-fetch bank items for text_hunt when the teacher hasn't entered custom
@@ -73,6 +74,9 @@ export default function TeacherModelPanel({ step, stepIndex, send, className, le
     try { return { config: c, activity: buildActivity(c) }; } catch { return { config: c, activity: null }; }
   }, [step, PRESETS, bankItems]);
 
+  if (step?.mode === 'fluency') {
+    return <FluencyLessonTeacher step={step} stepIndex={stepIndex} sessionId={liveSessionId} />;
+  }
   if (step?.mode === 'video') {
     return <VideoModelPlayer videoUrl={step?.config?.videoUrl} title={step.title} send={send} />;
   }

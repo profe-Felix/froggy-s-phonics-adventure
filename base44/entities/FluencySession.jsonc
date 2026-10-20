@@ -24,6 +24,11 @@
       "default": 0,
       "description": "Row currently being swept"
     },
+    "active_cell": {
+      "type": "integer",
+      "default": 0,
+      "description": "Shared highlighted box index in the randomized table."
+    },
     "sweep_start_at": {
       "type": "string",
       "default": "",

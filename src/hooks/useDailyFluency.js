@@ -112,7 +112,7 @@ export default function useDailyFluency() {
     : !position ? 'Set the module and lesson for this day in Lesson Editor.'
     : !books.length ? 'No DF book is tagged for this module and lesson yet. Tag a DF book or enter a daily word list.'
     : textQuery.data?.warnings.join(' ') || (!words.length ? 'No readable book words yet. The teacher can enter the daily list.' : '');
-  const share = new URL('/DailyFluency', window.location.origin);
+  const share = new URL('/FluencyTable?daily=1', window.location.origin);
   for (const [key, value] of Object.entries({ lesson: lessonId, day, type })) share.searchParams.set(key, value);
   return { lessons: lesson && !lessons.some(l => l.id === lesson.id) ? [...lessons, lesson] : lessons,
     lessonId, setLessonId: id => change('lesson', id), day, setDay: d => change('day', d), days,

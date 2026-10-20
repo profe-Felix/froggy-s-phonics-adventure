@@ -1828,7 +1828,7 @@ export default function LessonEditor() {
                   Assign one curriculum lesson to each school day. Turn off a day for holidays or days with no assignment.
                 </p>
                 {editing.id && <a className="inline-block mt-2 text-sm font-bold text-indigo-700 underline"
-                  href={`/DailyFluency?role=teacher&lesson=${encodeURIComponent(editing.id)}`} target="_blank" rel="noreferrer">
+                  href={`/FluencyTable?daily=1&role=teacher&lesson=${encodeURIComponent(editing.id)}`} target="_blank" rel="noreferrer">
                   Daily fluency boards and family links
                 </a>}
               </div>

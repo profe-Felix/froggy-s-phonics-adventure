@@ -1128,6 +1128,7 @@ export default function LiveLesson() {
     />
   ) : (
     <TeacherModelPanel
+      liveSessionId={session?.id}
       step={currentStep}
       stepIndex={session.current_step || 0}
       send={send}

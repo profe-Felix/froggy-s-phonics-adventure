@@ -7,14 +7,6 @@ import BackButton from '@/components/ui/BackButton';
 // QR — they never need this hub.
 const WORKSTATIONS = [
   {
-    id: 'dailyfluency',
-    name: 'Daily Fluency · Family Practice',
-    desc: 'Daily letters, syllables, HFW and editable DF book words. Share a family practice board.',
-    emoji: 'Aa',
-    path: '/DailyFluency?role=teacher',
-    color: '#059669',
-  },
-  {
     id: 'powerfulword',
     name: 'Powerful Word',
     desc: 'Bilingual Spanish↔English flashcards. Students tap Show to reveal the translation.',

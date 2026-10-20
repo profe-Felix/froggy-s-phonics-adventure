@@ -56,8 +56,8 @@ test('range input retains drafts and daily board is navigable and shareable with
   assert.doesNotMatch(range, /parseInt\(/);
   const page = await readFile(new URL('../src/pages/DailyFluency.jsx', import.meta.url), 'utf8');
   assert.match(page, /ArrowRight/);
-  assert.match(page, /Anterior/);
-  assert.match(page, /Siguiente/);
+  assert.match(page, /FluencyGrid/);
+  assert.match(page, /Shuffle/);
   assert.match(page, /saveWords/);
   assert.match(page, /shareUrl/);
 });

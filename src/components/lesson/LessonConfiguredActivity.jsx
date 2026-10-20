@@ -15,6 +15,7 @@ import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
 import DictationStep from '@/components/lesson/modes/DictationStep';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 import NotebookAssignmentEntry from '@/components/external-notebook/NotebookAssignmentEntry';
+import { FluencyLessonStudent } from '@/components/live/FluencyLessonTable';
 
 // Build a lesson context for the external notebook from the actual live session.
 // Independent (non-live) lessons have no authorized live source → null context →
@@ -87,7 +88,9 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'syllable_blender': return <SyllableBlenderStep onComplete={onComplete} targets={config.targets} curriculumPosition={config.curriculumPosition} curriculumPositionOverride={config.curriculumPositionOverride}/>;
     case 'activities': return <ActivitiesStep onComplete={onComplete} studentName={selectedStudent?.name||`Estudiante ${studentNumber||''}`} stepConfig={config} completion={comp} activityState={getActivityState?.(stepIndex)} onActivityState={state=>saveActivityState?.(stepIndex,state)}/>;
     case 'word_builder': return <WordBuilderStep onComplete={onComplete} {...student} studentData={activityStudentData} onStudentPatch={onStudentPatch} {...curriculum}/>;
-    case 'fluency': return <FluencyPracticeStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;
+    case 'fluency': return liveSession?.active && stepIndex === (liveSession.current_step ?? 0)
+      ? <FluencyLessonStudent step={step} stepIndex={stepIndex} liveSession={liveSession} />
+      : <FluencyPracticeStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;
     case 'video': return <VideoStep onComplete={onComplete} videoUrl={config.videoUrl} title={step.title}/>;
     case 'soundwall': return <SoundWallStep onComplete={onComplete} stepConfig={{...config,curriculumKey:config.curriculumKey||''}}/>;
     case 'google_slides': return <GoogleSlidesStep onComplete={onComplete} stepConfig={config} title={step.title}/>;

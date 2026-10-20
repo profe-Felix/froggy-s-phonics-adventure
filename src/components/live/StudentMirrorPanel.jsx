@@ -7,13 +7,15 @@ import LetterSoundsMirrorCanvas from './LetterSoundsMirrorCanvas';
 import SoundWallMirrorCanvas from './SoundWallMirrorCanvas';
 import GoogleSlidesMirrorPanel from './GoogleSlidesMirrorPanel';
 import { Eye, Lock } from 'lucide-react';
+import { FluencyLessonMirror } from './FluencyLessonTable';
 
 // Student's side: renders a read-only mirror of the teacher's screen during the
 // "watch" phase. Routes by the broadcast type the teacher is emitting (video,
 // counting, manipulation, hunt, or tracing); any other activity shows a
 // "watch the board" screen until that mirror is added.
-export default function StudentMirrorPanel({ step, broadcast }) {
+export default function StudentMirrorPanel({ step, stepIndex, broadcast }) {
   const bType = broadcast?.type;
+  if (step?.mode === 'fluency') return <FluencyLessonMirror {...{ step, stepIndex, broadcast }} />;
 
   if (step?.mode === 'video' || bType === 'video') {
     return <VideoMirrorPlayer broadcast={bType === 'video' ? broadcast : null} videoUrl={step?.config?.videoUrl} />;

@@ -5,6 +5,8 @@ import { FLUENCY_PRESETS } from '@/components/workstations/fluencyPresets';
 import BackButton from '@/components/ui/BackButton';
 import FluencyGrid from '@/components/workstations/FluencyGrid';
 import CurriculumFluencyBuilder from '@/components/workstations/CurriculumFluencyBuilder';
+import DailyFluency from '@/pages/DailyFluency';
+import { latestFluencyWriter } from '@/lib/literacy/fluencySync.mjs';
 
 // Real curriculum presets live in Supabase Storage (public bucket). Fetched at
 // load; the local FLUENCY_PRESETS is the fallback if the fetch fails.
@@ -15,12 +17,38 @@ const genCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 
 export default function FluencyTable() {
   const params = new URLSearchParams(window.location.search);
+  if (params.get('daily') === '1') return <DailyFluency />;
+  return <FluencySessionTable />;
+}
+
+function FluencySessionTable() {
+  const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
   const [presets, setPresets] = useState(FLUENCY_PRESETS);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState('');
   const [showQr, setShowQr] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const sessionRef = useRef(null);
+  sessionRef.current = session;
+  const pendingPatch = useRef(null);
+  const writer = useMemo(() => latestFluencyWriter(
+    ({ id, patch }) => base44.entities.FluencySession.update(id, patch), setSyncError
+  ), []);
+  const updateControls = patch => {
+    if (!isTeacher || !session) return;
+    const next = { ...sessionRef.current, ...patch };
+    sessionRef.current = next;
+    setSession(next);
+    const value = { id: session.id, patch: {
+      preset_id: next.preset_id, preset_data: next.preset_data || {},
+      seed: next.seed, active_row: next.active_row, active_cell: next.active_cell ?? 0,
+      sweep_start_at: next.sweep_start_at,
+    }};
+    pendingPatch.current = value;
+    writer.enqueue(value);
+  };
   const presetParam = params.get('preset');
   const [lobbyPreset, setLobbyPreset] = useState(
     presetParam && FLUENCY_PRESETS.some((p) => p.id === presetParam) ? presetParam : FLUENCY_PRESETS[0].id
@@ -54,9 +82,25 @@ export default function FluencyTable() {
     unsubRef.current = base44.entities.FluencySession.subscribe((ev) => {
       if (ev.data?.id !== id) return;
       if (ev.type === 'delete') setSession(null);
-      else setSession(ev.data);
+      else if (!(isTeacher && writer.isPending())) setSession(previous => ({ ...previous, ...ev.data }));
     });
   };
+  useEffect(() => {
+    if (!session?.id || isTeacher) return;
+    let alive = true, busy = false;
+    const refresh = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const fresh = await base44.entities.FluencySession.get(session.id);
+        if (alive) setSession(fresh);
+      } catch (error) { if (alive) setSyncError(error); }
+      finally { busy = false; }
+    };
+    const timer = setInterval(refresh, 2000);
+    window.addEventListener('focus', refresh);
+    return () => { alive = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [session?.id, isTeacher]);
 
   const loadByCode = async (code) => {
     const found = await base44.entities.FluencySession.filter({ code });
@@ -90,9 +134,10 @@ export default function FluencyTable() {
   const startSession = async (curriculum) => {
     const code = genCode();
     const preset_id = curriculum ? curriculum.preset_id : lobbyPreset;
-    const preset_data = curriculum ? curriculum.preset_data : undefined;
+    const preset_data = curriculum ? curriculum.preset_data : presets.find(p => p.id === lobbyPreset);
+    if (!preset_data?.content?.length) { setSyncError(new Error('Choose a fluency preset with content.')); return; }
     const created = await base44.entities.FluencySession.create({
-      code, preset_id, ...(preset_data ? { preset_data } : {}), seed: Date.now(), active_row: 0, sweep_start_at: '',
+      code, preset_id, preset_data, seed: Date.now(), active_row: 0, active_cell: 0, sweep_start_at: '',
     });
     setSession(created);
     subscribeTo(created.id);
@@ -104,29 +149,19 @@ export default function FluencyTable() {
   // shuffle / preset-change relied solely on the subscription, so a delayed
   // or missed event made the page look frozen and forced a refresh.
   const onPlayRow = (r) => {
-    if (!session) return;
-    const sweepStartAt = new Date().toISOString();
-    setSession((prev) => (prev ? { ...prev, active_row: r, sweep_start_at: sweepStartAt } : prev));
-    base44.entities.FluencySession.update(session.id, {
-      active_row: r,
-      sweep_start_at: sweepStartAt,
-    }).catch(() => {});
+    updateControls({ active_row: r, active_cell: r * preset.cols, sweep_start_at: new Date().toISOString() });
   };
 
   const changePreset = (id) => {
     setLobbyPreset(id);
-    setSession((prev) => (prev ? { ...prev, preset_id: id, preset_data: {}, active_row: 0, sweep_start_at: '' } : prev));
-    if (session) base44.entities.FluencySession.update(session.id, {
-      preset_id: id, preset_data: {}, active_row: 0, sweep_start_at: '',
-    }).catch(() => {});
+    const next = presets.find(p => p.id === id);
+    if (!next?.content?.length) { setSyncError(new Error('That preset has no fluency content.')); return; }
+    updateControls({ preset_id: id, preset_data: next, active_row: 0, active_cell: 0, sweep_start_at: '' });
   };
 
   const shuffle = () => {
     const seed = Date.now();
-    setSession((prev) => (prev ? { ...prev, seed, active_row: 0, sweep_start_at: '' } : prev));
-    if (session) base44.entities.FluencySession.update(session.id, {
-      seed, active_row: 0, sweep_start_at: '',
-    }).catch(() => {});
+    updateControls({ seed, active_row: 0, active_cell: 0, sweep_start_at: '' });
   };
 
   const studentUrl = `${window.location.origin}${window.location.pathname}?role=student&code=${session?.code || ''}`;
@@ -146,7 +181,7 @@ export default function FluencyTable() {
           <div className="flex items-center gap-3 p-3 bg-white border-b">
             <BackButton onClick={() => window.history.back()} />
             <h1 className="font-bold text-lg">Fluency Table — New Session</h1>
-            <a href="/DailyFluency?role=teacher" className="ml-auto text-sm font-bold text-indigo-700 underline">Daily boards · Family practice</a>
+            <a href="/FluencyTable?role=teacher&daily=1" className="ml-auto text-sm font-bold text-indigo-700 underline">Daily curriculum · Family practice</a>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
             <div className="flex gap-2 mb-2">
@@ -189,7 +224,7 @@ export default function FluencyTable() {
         <div className="flex items-center gap-3 p-3 bg-white border-b">
           <BackButton onClick={() => window.history.back()} />
           <h1 className="font-bold text-lg">Join Fluency Table</h1>
-          <a href="/DailyFluency" className="ml-auto text-sm font-bold text-indigo-700 underline">Family practice</a>
+          <a href="/FluencyTable?daily=1" className="ml-auto text-sm font-bold text-indigo-700 underline">Family practice</a>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
           <input
@@ -231,12 +266,19 @@ export default function FluencyTable() {
       </div>
 
       <div className="flex-1 flex items-center justify-center p-4">
+        {syncError && <div role="alert" className="text-amber-800 bg-amber-50 p-2">
+          The latest highlight could not sync.
+          {isTeacher && <button className="underline ml-2" onClick={() => pendingPatch.current && writer.enqueue(pendingPatch.current)}>Retry sync</button>}
+        </div>}
         <FluencyGrid
           preset={preset}
           seed={session.seed}
           activeRow={session.active_row}
           sweepStartAt={session.sweep_start_at}
           onPlayRow={onPlayRow}
+          activeCell={session.active_cell ?? 0}
+          onSelectCell={index => updateControls({ active_cell: index, sweep_start_at: '' })}
+          interactive={isTeacher}
         />
       </div>
 

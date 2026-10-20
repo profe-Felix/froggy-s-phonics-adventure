@@ -361,7 +361,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
           LIVE with your teacher
         </div>
         <div className="flex-1 min-h-0">
-          <StudentMirrorPanel step={currentStep} broadcast={broadcast} />
+          <StudentMirrorPanel step={currentStep} stepIndex={stepIndex} broadcast={broadcast} />
         </div>
       </div>
     );
