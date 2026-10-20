@@ -88,11 +88,11 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
     catch (e) { setControlError(`${label} failed: ${errText(e)}`); return null; }
     finally { setBusy(""); }
   };
-  const publish = async (sessionId, list, p) => {
+  const publish = async (sessionId, list, p, control) => {
     if (embedded) return; // Parent LiveLesson already admits its own targeted students.
     setAnnounce({ state: "pending", error: "", sessionId });
     try {
-      await publishNativeLaunch({ className, assignmentId: assignment.id, sessionId, students: list, variant, page: p, schoolYear });
+      await publishNativeLaunch({ className, assignmentId: assignment.id, sessionId, students: list, variant, page: p, control, schoolYear });
       setAnnounce({ state: "ok", error: "", sessionId });
     } catch (e) { setAnnounce({ state: "error", error: errText(e), sessionId }); }
   };
@@ -100,13 +100,13 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
     setEndState(null);
     const ok = await doControl("Start", {});
     // Announce only once the actor has echoed the active session.
-    if (ok && ok.active !== false && !ok.ended) await publish(ok.id, ok.students || students, ok.page || page);
+    if (ok && ok.active !== false && !ok.ended) await publish(ok.id, ok.students || students, ok.page || page, ok);
   };
   const update = async (label, patch) => {
     if (!running) return;
     const ok = await doControl(label, patch);
     if (!ok) { setFollowing(L.follow !== false); setCanWrite(L.canWrite !== false); }
-    if (ok && patch.students) await publish(ok.id, ok.students || patch.students, ok.page || page);
+    if (ok) await publish(ok.id, ok.students || patch.students || students, ok.page || page, ok);
   };
   const end = async (retryOnly) => {
     const sessionId = running ? L.id : endState?.sessionId;

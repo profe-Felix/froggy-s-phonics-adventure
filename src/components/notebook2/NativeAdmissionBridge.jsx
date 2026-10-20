@@ -41,11 +41,14 @@ function Session({ launch, identity, leaving, onExit }) {
     <div className="nb2-bar"><strong>{query.data?.title || "Live notebook"} · Version {launch.variant}</strong>
       <span>{identity.className} · #{identity.number}</span>{saving && <span>Saving before returning…</span>}</div>
     {(error || live.error) && <Notice tone="warn">{error || live.error} <button className="nb2-btn" onClick={live.retry}>Retry connection</button></Notice>}
-    {query.isLoading || loading || !live.live ? <p role="status">Opening your live notebook…</p> : query.error || assetError || !asset
+    {query.isLoading || loading ? <p role="status">Opening your live notebook…</p> : query.error || assetError || !asset
       ? <Notice tone="warn">{assetError || "Your notebook is not ready yet."}
         <button className="nb2-btn" onClick={() => { query.refetch(); reload(); }}>Retry notebook</button></Notice>
-      : <NativeStudentSurface assignment={query.data} asset={asset} className={identity.className} number={identity.number}
-        variant={launch.variant} schoolYear={identity.schoolYear} readOnly={!!exiting} initialPage={live.live?.page || launch.page || 1} live={live.live} registerSave={registerSave} onRetryAsset={reload} />}
+      : <>{!live.live && <Notice tone="warn">The worksheet is ready. Waiting for the teacher's live controls; writing is paused.
+          <button className="nb2-btn" onClick={live.retry}>Retry live controls</button></Notice>}
+        <NativeStudentSurface assignment={query.data} asset={asset} className={identity.className} number={identity.number}
+          variant={launch.variant} schoolYear={identity.schoolYear} readOnly={!!exiting || !live.live}
+          initialPage={live.live?.page || launch.page || 1} live={live.live} registerSave={registerSave} onRetryAsset={reload} /></>}
   </div>;
 }
 

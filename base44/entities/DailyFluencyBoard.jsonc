@@ -1,0 +1,18 @@
+{
+  "name": "DailyFluencyBoard",
+  "type": "object",
+  "properties": {
+    "board_key": {"type": "string"},
+    "lesson_id": {"type": "string"},
+    "day": {"type": "string"},
+    "position": {"type": "string"},
+    "source_signature": {"type": "string"},
+    "book_ids": {"type": "array", "items": {"type": "string"}},
+    "generated_words": {"type": "array", "items": {"type": "string"}},
+    "words": {"type": "array", "items": {"type": "string"}},
+    "words_overridden": {"type": "boolean", "default": false},
+    "saved_at": {"type": "string"}
+  },
+  "required": ["board_key", "lesson_id", "day"],
+  "rls": {"read": null, "create": null, "update": null, "delete": null}
+}

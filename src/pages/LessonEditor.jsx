@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import LessonRangeInput from '@/components/lesson/LessonRangeInput';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
@@ -1826,6 +1827,10 @@ export default function LessonEditor() {
                 <p className="text-xs text-gray-500 mt-1">
                   Assign one curriculum lesson to each school day. Turn off a day for holidays or days with no assignment.
                 </p>
+                {editing.id && <a className="inline-block mt-2 text-sm font-bold text-indigo-700 underline"
+                  href={`/DailyFluency?role=teacher&lesson=${encodeURIComponent(editing.id)}`} target="_blank" rel="noreferrer">
+                  Daily fluency boards and family links
+                </a>}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -1884,11 +1889,10 @@ export default function LessonEditor() {
 
                           <label className="text-xs text-gray-600 font-bold">
                             Lesson
-                            <input
-                              type="text"
+                            <LessonRangeInput
                               value={lessonRangeLabel(dailyLesson)}
-                              onChange={(e) =>
-                                updateDailyLesson(value, parseLessonRangeInput(e.target.value))
+                              onChange={(range) =>
+                                updateDailyLesson(value, range)
                               }
                               placeholder="1 or 3-4"
                               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"

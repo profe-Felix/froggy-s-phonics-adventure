@@ -94,6 +94,7 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'digital_notebook2':
     case 'digital_notebook3':
       return <DigitalNotebook2Step variant={step.mode === 'digital_notebook3' ? 3 : 2} stepConfig={config} onComplete={onComplete} registerSave={registerActivitySave}
+        schoolYear={studentData?.school_year} liveSession={liveSession} stepIndex={stepIndex}
         studentNumber={selectedStudent?.number || studentData?.student_number || studentData?.number || studentNumber}
         className={selectedStudent?.class_name || studentData?.class_name || className} />;
     case 'digital_notebook': {

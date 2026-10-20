@@ -50,3 +50,22 @@ export function normalizeLiveControl(input, pageCount, previous) {
     pageCommand: typeof input.pageCommand === "string" ? input.pageCommand.slice(0, 100) : previous?.pageCommand || "",
   };
 }
+
+// A durable classroom announcement can restore a live room after an idle
+// restart. Never revive a session carrying an End marker.
+export function recoverNativeLive(rows, scope, endedIds = []) {
+  const row = (rows || []).filter(r => r.active === true && r.class_name === scope.className
+    && r.assignment_id === scope.assignmentId && r.school_year === scope.schoolYear
+    && r.variant === (scope.variant || 2) && !endedIds.includes(r.session_id))
+    .sort((a, b) => (b.started_at || 0) - (a.started_at || 0))[0];
+  if (!row) return null;
+  const confirmed = row.confirmed_control?.id === row.session_id ? row.confirmed_control : null;
+  return normalizeLiveControl({
+    ...confirmed, id: row.session_id, students: row.students, engine: 'native',
+    page: confirmed?.page || row.page || 1,
+    // Old announcements did not store the writing lock: recover locked rather
+    // than granting writing that the teacher may have paused.
+    canWrite: confirmed ? confirmed.canWrite !== false : false,
+    follow: confirmed ? confirmed.follow !== false : true,
+  }, scope.pageCount, null);
+}

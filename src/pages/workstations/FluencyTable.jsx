@@ -146,6 +146,7 @@ export default function FluencyTable() {
           <div className="flex items-center gap-3 p-3 bg-white border-b">
             <BackButton onClick={() => window.history.back()} />
             <h1 className="font-bold text-lg">Fluency Table — New Session</h1>
+            <a href="/DailyFluency?role=teacher" className="ml-auto text-sm font-bold text-indigo-700 underline">Daily boards · Family practice</a>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
             <div className="flex gap-2 mb-2">
@@ -188,6 +189,7 @@ export default function FluencyTable() {
         <div className="flex items-center gap-3 p-3 bg-white border-b">
           <BackButton onClick={() => window.history.back()} />
           <h1 className="font-bold text-lg">Join Fluency Table</h1>
+          <a href="/DailyFluency" className="ml-auto text-sm font-bold text-indigo-700 underline">Family practice</a>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
           <input

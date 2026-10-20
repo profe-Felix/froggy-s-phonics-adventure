@@ -1,17 +1,23 @@
 import { Actor } from "base44:runtime/actors";
-import { nativeScope, checkedPage, validateNativeOperation, normalizeLiveControl } from "./model.js";
+import { nativeScope, checkedPage, validateNativeOperation, normalizeLiveControl, recoverNativeLive } from "./model.js";
 
 // Exclusive V2 namespace. No NotebookSession, old actor, live entity, or Replit API writes.
 export default class NativeNotebook2 extends Actor {
   users = new Map(); pages = new Map(); scope = null; live = null;
-  chain = Promise.resolve();
+  chain = Promise.resolve(); hydrated = null;
   async handleStart() {
-    this.scope = await this.storage.get("scope") || null;
-    this.live = await this.storage.get("live") || null;
-    this.users = new Map(await this.storage.get("users") || []);
-    this.pages = new Map();
+    await this.hydrate();
   }
-  async handleConnect(conn) { conn.send({ type: "ready" }); }
+  async hydrate() {
+    if (!this.hydrated) this.hydrated = (async () => {
+      this.scope = await this.storage.get("scope") || null;
+      this.live = await this.storage.get("live") || null;
+      this.users = new Map(await this.storage.get("users") || []);
+      this.pages = new Map();
+    })();
+    await this.hydrated;
+  }
+  async handleConnect(conn) { conn.send({ type: "ready", protocol: "native-recovery-1" }); }
   async handleTick() {}
   async handleClose(conn) {
     this.users.delete(conn.id);
@@ -67,6 +73,7 @@ export default class NativeNotebook2 extends Actor {
     this.chain = this.chain.catch(() => {}).then(async () => {
       let stage = "request";
       try {
+        await this.hydrate();
         if (msg?.type === "join") {
           stage = "scope";
           const key = nativeScope(msg.scope);
@@ -86,6 +93,18 @@ export default class NativeNotebook2 extends Actor {
           // Teacher connections to ink rooms are read-only; only live-room teachers control V2.
           stage = "scope-store";
           this.scope = next; await this.storage.put("scope", next);
+          if (next.channel === "live" && !this.live) {
+            stage = "live-recovery";
+            const entity = this.client.asServiceRole.entities.NativeNotebookLaunch;
+            if (entity) {
+              const rows = await entity.filter({ class_name: next.className, school_year: next.schoolYear,
+                assignment_id: next.assignmentId, variant: next.variant || 2, active: true }, "-started_at", 30);
+              const ended = [];
+              for (const row of rows) if (await this.storage.get(`ended:${row.session_id}`)) ended.push(row.session_id);
+              this.live = recoverNativeLive(rows, next, ended);
+              if (this.live) await this.storage.put("live", this.live);
+            }
+          }
           this.users.set(conn.id, { role: msg.role, number: Number(msg.scope.studentNumber) || 0, page: checkedPage(msg.page || 1, next.pageCount) });
           stage = "subscriber-store";
           await this.storage.put("users", [...this.users]);

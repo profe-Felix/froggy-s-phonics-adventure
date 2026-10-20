@@ -20,7 +20,9 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
     const total = preset.rows * preset.cols;
     const pool = [];
     let s = seed;
-    while (pool.length < total) pool.push(...seededShuffle(preset.content.filter(Boolean), s++));
+    const content = preset.content.filter(Boolean);
+    if (!content.length) return [];
+    while (pool.length < total) pool.push(...seededShuffle(content, s++));
     return pool.slice(0, total);
   }, [preset, seed]);
 
@@ -31,6 +33,9 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
   }, [grid, preset.cols]);
 
   const [sweepIdx, setSweepIdx] = useState(-1);
+  const [manualIndex, setManualIndex] = useState(0);
+  const [manual, setManual] = useState(true);
+  useEffect(() => { setManualIndex(0); setManual(true); }, [preset.id, seed]);
 
   // Ref so the sweep reads the latest cols/sweep_ms without re-firing when
   // the preset object reference changes (e.g. when the Supabase presets fetch
@@ -42,6 +47,7 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
 
   useEffect(() => {
     if (!sweepStartAt) { setSweepIdx(-1); return; }
+    setManual(false);
     const start = new Date(sweepStartAt).getTime();
     const { cols, sweep_ms } = presetRef.current;
     const rowStart = activeRow * cols;
@@ -59,6 +65,15 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
 
   return (
     <div className="flex flex-col gap-2 w-full max-w-5xl mx-auto">
+      <div className="flex items-center justify-center gap-3">
+        <button aria-label="Previous item" disabled={!grid.length || manualIndex <= 0}
+          className="border bg-white rounded-lg px-4 py-2 font-bold disabled:opacity-40"
+          onClick={() => { setManual(true); setManualIndex(i => Math.max(0, i - 1)); }}>← Previous</button>
+        <span aria-live="polite">{grid.length ? manualIndex + 1 : 0} / {grid.length}</span>
+        <button aria-label="Next item" disabled={!grid.length || manualIndex >= grid.length - 1}
+          className="border bg-white rounded-lg px-4 py-2 font-bold disabled:opacity-40"
+          onClick={() => { setManual(true); setManualIndex(i => Math.min(grid.length - 1, i + 1)); }}>Next →</button>
+      </div>
       {rows.map((row, r) => (
         <div key={r} className="flex items-stretch gap-2">
           <button
@@ -79,10 +94,12 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
           </button>
           {row.map((text, c) => {
             const idx = r * preset.cols + c;
-            const active = idx === sweepIdx;
+            const active = idx === (manual ? manualIndex : sweepIdx);
             return (
-              <div
+              <button type="button"
                 key={c}
+                aria-current={active ? 'true' : undefined}
+                onClick={() => { setManual(true); setManualIndex(idx); }}
                 className="relative rounded-xl border bg-white flex items-center justify-center overflow-hidden select-none flex-1"
                 style={{ aspectRatio: '3 / 2', fontSize: 'clamp(1.1rem,2.2vw,1.9rem)', fontWeight: 700 }}
               >
@@ -95,7 +112,7 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
                     transition: active ? `transform ${preset.sweep_ms}ms linear` : 'none',
                   }}
                 />
-              </div>
+              </button>
             );
           })}
         </div>

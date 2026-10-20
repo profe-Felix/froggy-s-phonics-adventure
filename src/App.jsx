@@ -30,6 +30,7 @@ import Workstations from './pages/Workstations';
 import PowerfulWord from './pages/workstations/PowerfulWord';
 import SyllableTrain from './pages/workstations/SyllableTrain';
 import FluencyTable from './pages/workstations/FluencyTable';
+import DailyFluency from './pages/DailyFluency';
 import SyllableBlender from './pages/workstations/SyllableBlender';
 import LiveWorkstations from './pages/workstations/LiveWorkstations';
 import LetterSort from './pages/workstations/LetterSort';
@@ -171,6 +172,7 @@ const AuthenticatedApp = () => {
       <Route path="/PowerfulWord" element={<PowerfulWord />} />
       <Route path="/SyllableTrain" element={<SyllableTrain />} />
       <Route path="/FluencyTable" element={<FluencyTable />} />
+      <Route path="/DailyFluency" element={<DailyFluency />} />
       <Route path="/SyllableBlender" element={<SyllableBlender />} />
       <Route path="/LiveWorkstations" element={<LiveWorkstations />} />
       <Route path="/LetterSort" element={<LetterSort />} />
