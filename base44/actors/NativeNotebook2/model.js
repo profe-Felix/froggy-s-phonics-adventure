@@ -1,12 +1,12 @@
 // Canonical V2 wire contract. Actor deployment uploads this folder only.
 export const NATIVE_CLASSES = ["Felix", "Valero", "Campos", "Gutierrez"];
-export function nativeScope({ className, assignmentId, schoolYear, number = 0, channel = "ink" }) {
+export function nativeScope({ className, assignmentId, schoolYear, number = 0, channel = "ink", variant = 2 }) {
   if (!NATIVE_CLASSES.includes(className) || !/^[a-zA-Z0-9_-]{1,80}$/.test(assignmentId || "")
     || !/^\d{2}-\d{2}$/.test(schoolYear || "") || !["ink", "live"].includes(channel)
-    || !Number.isInteger(number) || (channel === "ink" ? number < 1 || number > 30 : number !== 0)) {
+    || ![2, 3].includes(variant) || !Number.isInteger(number) || (channel === "ink" ? number < 1 || number > 30 : number !== 0)) {
     throw new Error("Choose an enabled class, assignment, and student number from 1 to 30.");
   }
-  return `nb2:${className}:${assignmentId}:${schoolYear}:${channel}:${number}`;
+  return `nb${variant}:${className}:${assignmentId}:${schoolYear}:${channel}:${number}`;
 }
 export function sourceKey(assignment) {
   return /^sha256:[a-f0-9]{64}$/i.test(assignment.library_key || "")
@@ -45,7 +45,8 @@ export function normalizeLiveControl(input, pageCount, previous) {
   return {
     id: previous?.id || input.id,
     active: input.ended !== true, ended: input.ended === true,
-    page: checkedPage(input.page, pageCount), follow: input.follow !== false,
+    page: checkedPage(input.page, pageCount), follow: input.follow !== false, canWrite: input.canWrite !== false,
     students: selected, engine: input.engine, updatedAt: Date.now(),
+    pageCommand: typeof input.pageCommand === "string" ? input.pageCommand.slice(0, 100) : previous?.pageCommand || "",
   };
 }

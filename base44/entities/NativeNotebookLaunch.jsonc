@@ -1,0 +1,11 @@
+{
+  "name":"NativeNotebookLaunch","type":"object",
+  "properties":{
+    "class_name":{"type":"string"},"school_year":{"type":"string"},
+    "assignment_id":{"type":"string"},"session_id":{"type":"string"},
+    "variant":{"type":"integer","enum":[2,3]},"students":{"type":"array","items":{"type":"integer"}},
+    "page":{"type":"integer"},"active":{"type":"boolean"},"started_at":{"type":"number"}
+  },
+  "required":["class_name","school_year","assignment_id","session_id","variant","students","active","started_at"],
+  "rls":{"create":null,"read":null,"update":null,"delete":null}
+}

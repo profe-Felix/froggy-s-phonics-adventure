@@ -3,10 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { NotebookStudentView } from "@/lib/external-notebook/NotebookStudentView";
 import { useNativeInk } from "@/lib/notebook2/useNativeInk";
 import { nativeImage } from "@/lib/notebook2/assets";
+import { usePageBackground } from "@/lib/notebook2/pageBackground";
 import { ACTIVE_SCHOOL_YEAR } from "@/lib/schoolYear";
 import { Notice, Pill } from "./shared";
 
-export default function NativeStudentSurface({ assignment, asset, className, number, initialPage = 1, live = null, onSaved, allowedPages = null, registerSave, onRetryAsset }) {
+export default function NativeStudentSurface({ assignment, asset, className, number, variant = 2, schoolYear = ACTIVE_SCHOOL_YEAR, readOnly = false, initialPage = 1, live = null, onSaved, allowedPages = null, registerSave, onRetryAsset }) {
   const count = assignment.pdf_page_count;
   const allowed = Array.isArray(allowedPages) ? allowedPages.filter(p => Number.isInteger(p) && p >= 1 && p <= count) : null;
   const okPage = p => Number.isInteger(p) && p >= 1 && p <= count && (!allowed || allowed.includes(p));
@@ -17,8 +18,8 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   const finishRef = useRef(null);
   const moving = useRef(false);
 
-  const scope = useMemo(() => ({ className, assignmentId: assignment.id, schoolYear: ACTIVE_SCHOOL_YEAR, channel: "ink", number }),
-    [className, assignment.id, number]);
+  const scope = useMemo(() => ({ className, assignmentId: assignment.id, schoolYear, channel: "ink", number, variant }),
+    [className, assignment.id, number, variant, schoolYear]);
   const ink = useNativeInk({ scope, page, role: "student" });
   const flushRef = useRef(ink.flush); flushRef.current = ink.flush;
   const savedRef = useRef(onSaved); savedRef.current = onSaved;
@@ -39,6 +40,13 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   const inSession = !!live && live.active && !live.ended && live.id !== endedId && live.engine === "native"
     && Array.isArray(live.students) && live.students.includes(number);
   const following = inSession && live.follow !== false;
+  const pageCommand = useRef(null);
+  useEffect(() => {
+    if (inSession && live.pageCommand && live.pageCommand !== pageCommand.current) {
+      pageCommand.current = live.pageCommand;
+      if (okPage(live.page)) setTarget(live.page);
+    }
+  }, [inSession, live?.pageCommand, live?.page]);
   const teacherPage = following && okPage(live.page) ? live.page : null;
   useEffect(() => { if (teacherPage) setTarget(teacherPage); }, [teacherPage]);
   useEffect(() => {
@@ -61,10 +69,11 @@ export default function NativeStudentSurface({ assignment, asset, className, num
     return () => { cancelled = true; moving.current = false; };
   }, [target, page]);
 
-  const image = nativeImage(asset, page);
+  const background = usePageBackground(asset, page, variant);
+  const image = background.image;
   const missingRetry = useRef(null);
   useEffect(() => {
-    if (!image && onRetryAsset && missingRetry.current !== page) {
+    if (!nativeImage(asset, page) && onRetryAsset && missingRetry.current !== page) {
       missingRetry.current = page;
       onRetryAsset();
     }
@@ -76,19 +85,21 @@ export default function NativeStudentSurface({ assignment, asset, className, num
     setTiming("");
     probe.onload = () => setTiming(`First image ${Math.round(performance.now() - t0)} ms`);
     probe.src = image.url;
-    const near = [page - 1, page + 1].map(p => nativeImage(asset, p)).filter(Boolean).slice(0, 2).map(i => { const im = new Image(); im.src = i.url; return im; });
+    const near = [page - 1, page + 1].map(p => nativeImage(asset, p)).filter(i => i && i.kind !== "pdf").slice(0, 2).map(i => { const im = new Image(); im.src = i.url; return im; });
     return () => { probe.onload = null; probe.src = ""; near.forEach(im => { im.src = ""; }); };
   }, [image?.url, page, asset]);
 
+  if (background.loading) return <p role="status">Rendering individual PDF page {page}…</p>;
   if (!image) {
-    return <Notice tone="warn" data-testid="text-not-prepared">Page {page} is not prepared for version 2 yet. Ask your teacher to prepare the images, then try again.
-      <button type="button" className="nb2-btn" style={{ marginLeft: 8 }} onClick={() => (onRetryAsset ? onRetryAsset() : window.location.reload())} data-testid="button-retry-prepared">Try again</button></Notice>;
+    return <Notice tone="warn" data-testid="text-not-prepared">{background.error || `Page ${page} is not prepared for version ${variant} yet. Ask your teacher to prepare this page, then try again.`}
+      <button type="button" className="nb2-btn" style={{ marginLeft: 8 }} onClick={() => { background.retry(); onRetryAsset?.(); }} data-testid="button-retry-prepared">Try again</button></Notice>;
   }
 
-  const workbook = { id: `nb2-${assignment.id}`, title: assignment.title, width: image.width, height: image.height, pageCount: count };
+  const workbook = { id: `nb${variant}-${assignment.id}`, title: assignment.title, width: image.width, height: image.height, pageCount: count };
   const ended = !!endedId;
   const controls = {
-    page: target, canDraw: true, canNavigate: !following, followTeacher: following, allowedPages: allowed, reason: null,
+    page: target, canDraw: !readOnly && (!inSession || live.canWrite !== false), canNavigate: !readOnly && !following, followTeacher: following, allowedPages: allowed,
+    reason: inSession && live.canWrite === false ? "Your teacher paused writing." : null,
   };
   const syncState = {
     connection: { connected: ink.connected, connecting: !ink.connected, error: ink.error || null },
@@ -99,7 +110,7 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   return (
     <div data-notebook-surface data-testid="surface-native-student">
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 4px" }}>
-        <Pill tone="v2" data-testid="text-engine">Version 2 notebook (Base44-only)</Pill>
+        <Pill tone="v2" data-testid="text-engine">Version {variant} notebook (Base44-only · {variant === 3 ? "individual PDF page" : "images"})</Pill>
         {inSession && <Pill tone="ok" data-testid="status-live">Live lesson{following ? " · following teacher" : ""}</Pill>}
         {ended && <Pill tone="warn" data-testid="status-live-ended">Live lesson ended · your work is kept</Pill>}
         {timing && <Pill data-testid="text-timing">{timing}</Pill>}

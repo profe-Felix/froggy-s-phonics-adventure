@@ -92,7 +92,8 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'soundwall': return <SoundWallStep onComplete={onComplete} stepConfig={{...config,curriculumKey:config.curriculumKey||''}}/>;
     case 'google_slides': return <GoogleSlidesStep onComplete={onComplete} stepConfig={config} title={step.title}/>;
     case 'digital_notebook2':
-      return <DigitalNotebook2Step stepConfig={config} onComplete={onComplete} registerSave={registerActivitySave}
+    case 'digital_notebook3':
+      return <DigitalNotebook2Step variant={step.mode === 'digital_notebook3' ? 3 : 2} stepConfig={config} onComplete={onComplete} registerSave={registerActivitySave}
         studentNumber={selectedStudent?.number || studentData?.student_number || studentData?.number || studentNumber}
         className={selectedStudent?.class_name || studentData?.class_name || className} />;
     case 'digital_notebook': {

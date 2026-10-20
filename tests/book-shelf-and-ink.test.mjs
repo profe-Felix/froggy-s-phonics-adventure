@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bookSection, groupBooksBySection, resolveSection } from "../src/components/book/bookShelfSections.js";
-import { inkPageKey, addStroke, undoStroke, clearPage, eraseAt, normalizePoint } from "../src/components/book/teacherInk.js";
+import { inkPageKey, addStroke, undoStroke, clearPage, eraseAt, normalizePoint, strokePath, appendPoints, finalizePoints } from "../src/components/book/teacherInk.js";
 
 test("books split by subject tag, never by title", () => {
   const books = [
@@ -47,4 +47,17 @@ test("stroke reducers add, undo, erase and clear only the target page", () => {
   assert.equal(s[k2], undefined);
   assert.deepEqual(normalizePoint(150, 50, { left: 100, top: 0, width: 100, height: 100 }), [0.5, 0.5]);
   assert.deepEqual(normalizePoint(500, -5, { left: 100, top: 0, width: 100, height: 100 }), [1, 0]);
+});
+
+test("teacher ink smoothing keeps fine motion and the final segment", () => {
+  let pts = appendPoints([], [[0.1, 0.1]]);
+  pts = appendPoints(pts, [[0.1008, 0.1], [0.1009, 0.1], [0.2, 0.2]]);
+  assert.equal(pts.length, 3);
+  pts = appendPoints(pts, [[0.2001, 0.2]], true);
+  assert.deepEqual(pts.at(-1), [0.2001, 0.2]);
+  const d = strokePath(pts, 1000, 1000);
+  assert.match(d, /Q/);
+  assert.match(d, /L200\.1 200$/);
+  assert.deepEqual(finalizePoints([[0.123456789, 0.5]]), [[0.12346, 0.5]]);
+  assert.equal(strokePath([], 10, 10), "");
 });

@@ -43,9 +43,9 @@ export const NB2_CSS = `
 
 export const Pill = ({ tone, children, ...rest }) => <span className="nb2-pill" data-tone={tone} {...rest}>{children}</span>;
 export const Notice = ({ tone, children, ...rest }) => <div className="nb2-notice" data-tone={tone} role={tone === "bad" ? "alert" : "status"} {...rest}>{children}</div>;
-export const IsolationNotice = () => (
+export const IsolationNotice = ({ variant = 2 }) => (
   <Notice data-testid="text-isolation-notice">
-    Test version 2 (Base44-only). Separate storage and separate live controls. The regular notebook and its student work are not changed.
+    Test version {variant} (Base44-only). Separate storage and separate live controls. The regular notebook and its student work are not changed.
   </Notice>
 );
 
@@ -96,25 +96,44 @@ export function Catalog({ records, className, selectedId, onPick }) {
 
 // Live room for one assignment. Never sends anything on mount except the client's join.
 export function useNativeLive(scope, role) {
-  const [state, setState] = useState({ live: null, connected: false, error: "" });
+  const [state, setState] = useState({ live: null, connected: false, error: "", online: [] });
   const clientRef = useRef(null);
-  const key = scope ? `${scope.className}|${scope.assignmentId}|${scope.schoolYear}` : "";
+  const waiting = useRef(new Map());
+  const key = scope ? `${scope.variant || 2}|${scope.className}|${scope.assignmentId}|${scope.schoolYear}|${scope.studentNumber || 0}` : "";
   useEffect(() => {
     if (!scope) return undefined;
-    setState({ live: null, connected: false, error: "" });
+    setState({ live: null, connected: false, error: "", online: [] });
     let client;
     try {
       client = openNativeNotebook({ ...scope, channel: "live", number: 0 }, role, msg => {
         if (msg.type === "connection") setState(s => ({ ...s, connected: msg.connected }));
         else if ((msg.type === "joined" || msg.type === "live") && "live" in msg) setState(s => ({ ...s, live: msg.live || null, error: "" }));
+        else if (msg.type === "presence") setState(s => ({ ...s, online: msg.online || [] }));
+        else if (msg.type === "control-ack" || (msg.type === "error" && msg.requestId)) {
+          const pending = waiting.current.get(msg.requestId);
+          if (pending) { clearTimeout(pending.timer); waiting.current.delete(msg.requestId);
+            msg.type === "error" ? pending.reject(new Error(msg.message)) : pending.resolve(msg.live); }
+        }
         else if (msg.type === "error") setState(s => ({ ...s, error: msg.message || "Live connection problem." }));
       });
     } catch (e) { setState(s => ({ ...s, error: e.message })); return undefined; }
     clientRef.current = client;
-    return () => { client.close(); if (clientRef.current === client) clientRef.current = null; };
+    return () => {
+      client.close(); if (clientRef.current === client) clientRef.current = null;
+      for (const p of waiting.current.values()) { clearTimeout(p.timer); p.reject(new Error("Live connection changed. Retry the control.")); }
+      waiting.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, role]);
-  return { ...state, send: data => clientRef.current?.send(data), retry: () => clientRef.current?.retry() };
+  const control = body => new Promise((resolve, reject) => {
+    if (!clientRef.current || !state.connected) { reject(new Error("Wait for the live connection, then retry.")); return; }
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => { waiting.current.delete(requestId); reject(new Error("Notebook has not confirmed this control. Retry; students were not announced yet.")); }, 12000);
+    waiting.current.set(requestId, { resolve, reject, timer });
+    try { clientRef.current.send({ type: "control", control: body, requestId }); }
+    catch (e) { clearTimeout(timer); waiting.current.delete(requestId); reject(e); }
+  });
+  return { ...state, control, send: data => clientRef.current?.send(data), retry: () => clientRef.current?.retry() };
 }
 
 export const currentNotebookUrl = ({ className, number, assignmentId, page }) =>

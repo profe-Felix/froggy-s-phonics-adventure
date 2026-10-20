@@ -153,6 +153,7 @@
               "missing_letter",
               "digital_notebook",
               "digital_notebook2",
+              "digital_notebook3",
               "dictation"
             ],
             "description": "Which existing activity this step launches"

@@ -42,6 +42,7 @@ import { fetchLessons } from '@/lib/lessonsLoader';
 import { assessmentContext } from '@/lib/external-notebook/context';
 import { isExternalNotebookActive } from '@/lib/external-notebook/runtime';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
+import { setNativeIdentity } from '@/lib/notebook2/identity';
 
 export default function LetterGame() {
   const navigate = useNavigate();
@@ -170,6 +171,18 @@ export default function LetterGame() {
     studentData.class_name === selectedStudent?.class_name &&
     Number(studentData.student_number) === Number(selectedStudent?.number)
   );
+
+  // Explicit native starts may overlay this student's existing activity;
+  // retaining the activity mounted preserves its local state on return.
+  useEffect(() => {
+    setNativeIdentity({
+      className: selectedStudent?.class_name, number: Number(selectedStudent?.number),
+      schoolYear: studentData?.school_year || ACTIVE_SCHOOL_YEAR,
+      enabled: studentEntryReady && !teacherMode && !liveSession,
+      beforeEnter: async () => !assessmentSaveRef.current || (await assessmentSaveRef.current()) === true,
+    });
+  }, [selectedStudent?.class_name, selectedStudent?.number, studentData?.school_year, studentEntryReady, teacherMode, liveSession]);
+  useEffect(() => () => setNativeIdentity(null), []);
 
   const eligibleLiveSessions = studentEntryReady
     ? (activeLiveSessions || []).filter(s => {

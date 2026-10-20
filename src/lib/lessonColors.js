@@ -46,6 +46,7 @@ export const MODE_OPTIONS = [
   { value: 'missing_letter',          label: 'Missing Letter',      emoji: '🔤', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'digital_notebook',        label: 'Digital Notebook',    emoji: '📓', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'digital_notebook2',       label: 'Digital Notebook 2 (Base44-only test)', emoji: '', defaultCompletion: 'view', defaultTarget: 1 },
+  { value: 'digital_notebook3',       label: 'Digital Notebook 3 (individual PDF pages)', emoji: '', defaultCompletion: 'view', defaultTarget: 1 },
   { value: 'sentence_builder',        label: 'Creando oraciones',   emoji: '🃏', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'dictation',               label: 'Dictado',             emoji: '✍️', defaultCompletion: 'view',    defaultTarget: 1 },
 ];

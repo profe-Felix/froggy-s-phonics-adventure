@@ -138,7 +138,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
         status: 'active',
       }),
     enabled:
-      ['digital_notebook', 'digital_notebook2'].includes(step.mode),
+      ['digital_notebook', 'digital_notebook2', 'digital_notebook3'].includes(step.mode),
   });
 
   const notebookAssignmentChoices = notebookLibrary(notebookAssignments, lessonClass || '');
@@ -260,9 +260,10 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
         </label>
       </div>
 
-      {['digital_notebook', 'digital_notebook2'].includes(step.mode) ? (
+      {['digital_notebook', 'digital_notebook2', 'digital_notebook3'].includes(step.mode) ? (
         <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
           {step.mode === 'digital_notebook2' && <p className="text-xs font-bold text-indigo-800">Base44-only trial. Prepare images once in /LiveLesson2. This step uses separate V2 student work; the regular notebook step stays unchanged.</p>}
+          {step.mode === 'digital_notebook3' && <p className="text-xs font-bold text-indigo-800">Base44-only PDF-page trial. Split the required pages in /LiveLesson3. V3 uses separate student work; V2 and the regular notebook stay unchanged.</p>}
           <p className="text-[11px] text-indigo-700 bg-indigo-50 rounded-lg p-2">
             The student’s class will be selected automatically from the lesson URL.
           </p>

@@ -1,3 +1,4 @@
+import { inkPath } from '../../lib/external-notebook/ink-model.js';
 // Pure helpers for the teacher-only page annotator. Strokes are stored in
 // page-normalized coordinates (0..1 of the rendered page box) so they stay
 // aligned when the reader resizes or toggles 2-up. Nothing here touches the
@@ -56,7 +57,28 @@ export function eraseAt(state, key, point, radius = 0.025) {
   return kept.length === list.length ? state : { ...state, [key]: kept };
 }
 
+// Smooth midpoint/quadratic path shared with the notebook canvas.
 export function strokePath(points, w, h) {
   if (!points.length) return '';
-  return points.map((p, i) => `${i ? 'L' : 'M'}${(p[0] * w).toFixed(1)} ${(p[1] * h).toFixed(1)}`).join(' ');
+  return inkPath(points.map(([x, y]) => ({ x: (x * w) / 1000, y })), h, true);
+}
+
+export const MIN_POINT_GAP = 0.0006;
+const round = (v) => Math.round(v * 1e5) / 1e5;
+
+// Appends sampled points, skipping near-duplicates; final=true always keeps the last sample.
+export function appendPoints(points, incoming, final = false, gap = MIN_POINT_GAP) {
+  const out = points.slice();
+  incoming.forEach((p, i) => {
+    if (!p) return;
+    const last = out[out.length - 1];
+    const isLast = final && i === incoming.length - 1;
+    if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > gap) out.push(p);
+    else if (isLast && out.length > 1 && (p[0] !== last[0] || p[1] !== last[1])) out[out.length - 1] = p;
+  });
+  return out;
+}
+
+export function finalizePoints(points) {
+  return points.map(([x, y]) => [round(x), round(y)]);
 }

@@ -16,6 +16,14 @@ export default class NativeNotebook2 extends Actor {
   async handleClose(conn) {
     this.users.delete(conn.id);
     await this.storage.put("users", [...this.users]);
+    this.sendPresence();
+  }
+  sendPresence() {
+    if (this.scope?.channel !== "live") return;
+    const connected = new Set([...this.getConnections()].map(c => c.id));
+    this.broadcast({ type: "presence", online: [...new Set([...this.users.entries()]
+      .filter(([id, u]) => connected.has(id) && u.role === "student" && u.number >= 1 && u.number <= 30)
+      .map(([, u]) => u.number))] });
   }
   async writeBlob(key, value) {
     const json = JSON.stringify(value);
@@ -78,10 +86,11 @@ export default class NativeNotebook2 extends Actor {
           // Teacher connections to ink rooms are read-only; only live-room teachers control V2.
           stage = "scope-store";
           this.scope = next; await this.storage.put("scope", next);
-          this.users.set(conn.id, { role: msg.role, page: checkedPage(msg.page || 1, next.pageCount) });
+          this.users.set(conn.id, { role: msg.role, number: Number(msg.scope.studentNumber) || 0, page: checkedPage(msg.page || 1, next.pageCount) });
           stage = "subscriber-store";
           await this.storage.put("users", [...this.users]);
           conn.send({ type: "joined", scope: next, live: this.live });
+          this.sendPresence();
           if (next.channel === "ink") await this.sendPage(conn, msg.page || 1);
           return;
         }
@@ -118,7 +127,12 @@ export default class NativeNotebook2 extends Actor {
           conn.send({ type: "ack", page, id: op.id });
         } else if (msg.type === "control") {
           if (this.scope.channel !== "live" || user.role !== "teacher") throw new Error("Only the V2 teacher can change test controls.");
-          if (await this.storage.get(`ended:${msg.control.id}`)) throw new Error("This session has already ended.");
+          if (await this.storage.get(`ended:${msg.control.id}`)) {
+            if (msg.control.ended && this.live?.id === msg.control.id && this.live.ended) {
+              conn.send({ type: "control-ack", requestId: msg.requestId, live: this.live }); return;
+            }
+            throw new Error("This session has already ended.");
+          }
           const current = this.live?.id === msg.control.id ? this.live : null;
           if (!current && this.live?.active && msg.control.id !== this.live.id) throw new Error("End the current V2 session before starting another.");
           if (typeof msg.control.id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(msg.control.id)) throw new Error("Invalid test session.");
@@ -127,10 +141,11 @@ export default class NativeNotebook2 extends Actor {
           if (next.ended) await this.storage.put(`ended:${next.id}`, true);
           this.live = next;
           this.broadcast({ type: "live", live: this.live });
+          conn.send({ type: "control-ack", requestId: msg.requestId, live: this.live });
         }
       } catch {
         if (msg?.page) this.pages.delete(msg.page);
-        conn.send({ type: "error", code: stage, id: msg?.operation?.id, message: `The Base44-only notebook could not complete this request (${stage}). Pending work remains on this device; retry without closing the page.` });
+        conn.send({ type: "error", code: stage, requestId: msg?.requestId, id: msg?.operation?.id, message: `The Base44-only notebook could not complete this request (${stage}). Pending work remains on this device; retry without closing the page.` });
       }
     });
     await this.chain;

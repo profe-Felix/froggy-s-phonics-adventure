@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { normalizePoint, strokePath } from '@/components/book/teacherInk';
+import { normalizePoint, strokePath, appendPoints, finalizePoints } from '@/components/book/teacherInk';
 
 // Finds the box of the actually rendered page (canvas / img / iframe) inside
 // the page cell so strokes align with the page, not the letterbox.
@@ -68,9 +68,16 @@ export default function TeacherInkLayer({ ink, pageKey }) {
     return () => { el.removeEventListener('touchstart', stop); el.removeEventListener('touchmove', stop); };
   }, [drawing, box]);
 
-  useEffect(() => { drawingRef.current = null; setDraft(null); }, [pageKey, ink.tool]);
+  const rafRef = useRef(0);
+  const flush = () => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => { rafRef.current = 0; setDraft(drawingRef.current ? { ...drawingRef.current } : null); });
+  };
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+  useEffect(() => { drawingRef.current = null; cancelAnimationFrame(rafRef.current); rafRef.current = 0; setDraft(null); }, [pageKey, ink.tool]);
 
   const point = (e) => normalizePoint(e.clientX, e.clientY, svgRef.current?.getBoundingClientRect());
+  const samples = (e) => { const c = e.nativeEvent?.getCoalescedEvents?.(); return c && c.length ? c : [e]; };
 
   const onDown = (e) => {
     if (!drawing || (e.pointerType === 'mouse' && e.button !== 0)) return;
@@ -80,30 +87,27 @@ export default function TeacherInkLayer({ ink, pageKey }) {
     if (!p) return;
     if (ink.tool === 'erase') { drawingRef.current = { erase: true, id: e.pointerId }; ink.erase(pageKey, p); return; }
     drawingRef.current = { id: e.pointerId, tool: ink.tool, color: ink.color, points: [p] };
-    setDraft(drawingRef.current);
+    flush();
   };
   const onMove = (e) => {
     const d = drawingRef.current;
     if (!d || d.id !== e.pointerId) return;
     e.preventDefault(); e.stopPropagation();
-    const events = e.nativeEvent.getCoalescedEvents?.() || [e];
+    const events = samples(e);
     if (d.erase) { for (const ev of events) { const p = point(ev); if (p) ink.erase(pageKey, p); } return; }
-    const pts = d.points.slice();
-    for (const ev of events) {
-      const p = point(ev);
-      const last = pts[pts.length - 1];
-      if (p && (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.002)) pts.push(p);
-    }
-    drawingRef.current = { ...d, points: pts };
-    setDraft(drawingRef.current);
+    d.points = appendPoints(d.points, events.map(point));
+    flush();
   };
   const onUp = (e) => {
     const d = drawingRef.current;
     if (!d || d.id !== e.pointerId) return;
     e.stopPropagation();
     drawingRef.current = null;
+    cancelAnimationFrame(rafRef.current); rafRef.current = 0;
     setDraft(null);
-    if (!d.erase) ink.add(pageKey, { tool: d.tool, color: d.color, points: d.points.map(([x, y]) => [+x.toFixed(4), +y.toFixed(4)]) });
+    if (d.erase) return;
+    const pts = e.type === 'pointercancel' ? d.points : appendPoints(d.points, samples(e).map(point), true);
+    ink.add(pageKey, { tool: d.tool, color: d.color, points: finalizePoints(pts) });
   };
 
   const strokes = ink.strokes[pageKey] || [];

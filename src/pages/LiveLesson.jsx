@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { endNativeLessonStep } from '@/lib/notebook2/endLessonStep';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
@@ -555,6 +556,12 @@ export default function LiveLesson() {
         channel.pending = null;
 
         try {
+          const before = channel.confirmed;
+          if (next.active === false || (next.current_step !== undefined && next.current_step !== before.current_step)
+            || (next.lesson_day !== undefined && next.lesson_day !== before.lesson_day)) {
+            const previousSteps = getLiveLessonSteps(selectedLesson, before.lesson_day || selectedLessonDay);
+            await endNativeLessonStep(before.class_name, previousSteps[before.current_step || 0]);
+          }
           await base44.entities.LiveLessonSession.update(id, next);
           channel.confirmed = { ...channel.confirmed, ...next };
         } catch {
@@ -1303,11 +1310,11 @@ export default function LiveLesson() {
               : 'STUDENTS: RELEASED'}
         </div>
 
-        {currentStep?.mode === 'digital_notebook2' ? (
+        {['digital_notebook2', 'digital_notebook3'].includes(currentStep?.mode) ? (
           <div className="w-full h-full min-h-[65vh]">
             <p className="text-xs text-indigo-100 px-3 py-2">Base44-only test controls are separate. Start or end the V2 notebook test here; the regular notebook is unchanged.</p>
             <iframe title="Base44-only notebook teacher controls" className="w-full h-[75vh] border-0"
-              src={`/LiveLesson2?${new URLSearchParams({ class: session.class_name || '', assignment: currentStep.config?.assignmentId || '', page: String(currentStep.config?.pageStart || 1) })}`} />
+              src={`/LiveLesson${currentStep.mode === 'digital_notebook3' ? 3 : 2}?${new URLSearchParams({ embedded: '1', class: session.class_name || '', assignment: currentStep.config?.assignmentId || '', page: String(currentStep.config?.pageStart || 1) })}`} />
           </div>
         ) : currentStep?.mode === 'digital_notebook' ? (
           <>

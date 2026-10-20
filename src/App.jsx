@@ -11,8 +11,9 @@ import MathGames from './pages/MathGame';
 import QRGenerator from './pages/QRGenerator';
 import MathDashboard from './pages/MathDashboard';
 import DigitalNotebook from './pages/DigitalNotebook';
-import DigitalNotebook2 from './pages/DigitalNotebook2';
-import LiveLesson2 from './pages/LiveLesson2';
+import DigitalNotebook2, { DigitalNotebook3 } from './pages/DigitalNotebook2';
+import LiveLesson2, { LiveLesson3 } from './pages/LiveLesson2';
+import NativeAdmissionBridge from '@/components/notebook2/NativeAdmissionBridge';
 import SpanishReadingDashboard from './pages/SpanishReadingDashboard';
 import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
 import WordSentenceBuilder from './pages/WordSentenceBuilder';
@@ -125,7 +126,7 @@ const AuthenticatedApp = () => {
 
   // Render the main app
   return (
-    <Routes>
+    <><NativeAdmissionBridge /><Routes>
       <Route path="/" element={
         <TeacherViewRedirect>
           <LayoutWrapper currentPageName={mainPageKey}>
@@ -152,6 +153,8 @@ const AuthenticatedApp = () => {
       <Route path="/DigitalNotebook" element={<DigitalNotebook />} />
       <Route path="/DigitalNotebook2" element={<DigitalNotebook2 />} />
       <Route path="/LiveLesson2" element={<LiveLesson2 />} />
+      <Route path="/DigitalNotebook3" element={<DigitalNotebook3 />} />
+      <Route path="/LiveLesson3" element={<LiveLesson3 />} />
       <Route path="/SpanishReadingDashboard" element={<SpanishReadingDashboard />} />
       <Route path="/SpellingWritingDashboard" element={<SpellingWritingDashboard />} />
       <Route path="/Lessons" element={<Lessons />} />
@@ -228,7 +231,7 @@ const AuthenticatedApp = () => {
       <Route path="/NotebookLoadTest" element={<NotebookLoadTest />} />
       <Route path="/NotebookLoadTestStudent" element={<NotebookLoadTestStudent />} />
       <Route path="*" element={<PageNotFound />} />
-    </Routes>
+    </Routes></>
   );
 };
 
