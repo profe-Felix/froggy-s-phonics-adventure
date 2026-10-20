@@ -24,7 +24,8 @@ export function dedupRoster(records) {
     const n = Number(r?.student_number);
     if (Number.isInteger(n) && n >= 1 && n <= 30 && !seen.has(n)) seen.set(n, r);
   }
-  return [...seen.values()].sort((a, b) => Number(a.student_number) - Number(b.student_number));
+  // Whole class includes late arrivals even if their profile did not exist at Start.
+  return Array.from({ length: 30 }, (_, i) => seen.get(i + 1) || { student_number: i + 1, name: "", photo_url: "" });
 }
 
 function useRoster(className) {

@@ -1,5 +1,20 @@
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
+
+test("whole-class roster retains 30 seats, real pictures and late-arrival seats without duplicates", async () => {
+  const source = await readFile(new URL("../src/pages/LiveLesson2.jsx", import.meta.url), "utf8");
+  const block = source.match(/function dedupRoster\([\s\S]*?\n}/)?.[0];
+  assert.ok(block, "Roster function exists");
+  const roster = new Function(`${block}; return dedupRoster;`)()([
+    { student_number: 4, name: "Test", photo_url: "test-image" },
+    { student_number: 4, name: "Older copy" }, { student_number: 100 },
+  ]);
+  assert.equal(roster.length, 30);
+  assert.deepEqual(roster.map(s => s.student_number), Array.from({ length: 30 }, (_, i) => i + 1));
+  assert.equal(roster[3].photo_url, "test-image");
+  assert.equal(roster[29].student_number, 30);
+});
 import { chooseNativeLaunch, matchesNativeLaunch, mergeNativeLaunch } from "../src/lib/notebook2/admissionModel.mjs";
 import { nativeScope, normalizeLiveControl } from "../src/lib/notebook2/model.mjs";
 
