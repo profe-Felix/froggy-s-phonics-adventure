@@ -12,6 +12,8 @@ import { DECODING_LEVELS, generateDecodingItems, canAssessLevel } from '@/lib/de
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import AssessmentRecordingPlayer from '@/components/smallgroup/AssessmentRecordingPlayer';
 import AssessmentHistory from '@/components/smallgroup/AssessmentHistory';
+import AssessmentSaveStatus from '@/components/smallgroup/AssessmentSaveStatus';
+import { createAttemptStore, readAll, mergeStudentHistory } from '@/lib/assessmentAttempts.mjs';
 import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, ChevronDown, AlertCircle, Mic, Play, Volume2, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
@@ -132,6 +134,20 @@ export default function SmallGroupAssessment() {
   const [recordingTimeline, setRecordingTimeline] = useState([]);
   const [history, setHistory] = useState([]);
   const [showHistoryFor, setShowHistoryFor] = useState(null);
+  const [saveStatus, setSaveStatus] = useState({ pending: 0, error: '' });
+  const [historyStatus, setHistoryStatus] = useState({ loading: false, error: '' });
+  const [fullHistory, setFullHistory] = useState({});
+  const [attemptRows, setAttemptRows] = useState([]);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [loadError, setLoadError] = useState('');
+  const [endingSession, setEndingSession] = useState(false);
+  const attemptStore = useMemo(() => createAttemptStore({
+    entity: base44.entities.SmallGroupAssessmentAttempt,
+    storage: window.localStorage,
+    scope: `${ACTIVE_SCHOOL_YEAR}:${teacher}:${block}:${group}`,
+    onStatus: setSaveStatus,
+    onSaved: row => setAttemptRows(prev => [...prev.filter(r => r.attempt_key !== row.attempt_key), row]),
+  }), [teacher, block, group]);
   const recorder = useAudioRecorder();
 
   // Keep a ref of latest results so beforeunload/visibilitychange handlers can access it
@@ -168,8 +184,9 @@ export default function SmallGroupAssessment() {
     let alive = true;
     (async () => {
       setLoading(true);
+      setLoadError('');
       try {
-        const [active, completed] = await Promise.all([
+        const [active, completed, savedAttempts] = await Promise.all([
           base44.entities.SmallGroupAssessment.filter({
             teacher_name: teacher,
             block: block,
@@ -184,12 +201,34 @@ export default function SmallGroupAssessment() {
             status: 'completed',
             school_year: ACTIVE_SCHOOL_YEAR,
           }, '-created_date', 50),
+          readAll(base44.entities.SmallGroupAssessmentAttempt, {
+            teacher_name: teacher, block, color_group: group, school_year: ACTIVE_SCHOOL_YEAR,
+          }),
         ]);
         if (!alive) return;
+        setAttemptRows(savedAttempts);
+        attemptStore.seed(savedAttempts);
         setHistory(completed || []);
         if (active.length > 0) {
-          setSession(active[0]);
-          setResults(active[0].results || {});
+          const current = active[0];
+          const attempts = savedAttempts.filter(row => row.session_id === current.id);
+          const restored = structuredClone(current.results || {});
+          // Latest record for each type wins; unsent device snapshots win last.
+          const rows = [
+            ...attempts.sort((a, b) => (a.started_at || '').localeCompare(b.started_at || '') || (a.saved_at || '').localeCompare(b.saved_at || '')),
+            ...attemptStore.snapshots(current.id),
+          ];
+          for (const row of rows) {
+            restored[row.student_id] ||= {};
+            restored[row.student_id][row.assessment_type] = {
+              ...row.result, _attempt_id: row.attempt_key,
+            };
+          }
+          setSession(current);
+          resultsRef.current = restored;
+          setResults(restored);
+          attemptStore.stage(current, restored);
+          void attemptStore.flush();
         } else {
           // No active session — start a fresh round. History from completed
           // sessions is preserved for progress monitoring and "Reassess" display.
@@ -205,15 +244,40 @@ export default function SmallGroupAssessment() {
           });
           if (!alive) return;
           setSession(created);
+          resultsRef.current = {};
           setResults({});
         }
+        void attemptStore.flush();
       } catch {
-        // ignore
+        if (alive) setLoadError('Could not load saved assessment work. Refresh to retry; no existing results were changed.');
       }
       if (alive) setLoading(false);
     })();
     return () => { alive = false; };
-  }, [students, teacher, block, group]);
+  }, [students, teacher, block, group, attemptStore]);
+
+  // Load a student's complete school-year history on demand, regardless of
+  // current teacher/group. Legacy sessions remain read-only, never deleted.
+  useEffect(() => {
+    if (!showHistoryFor) return;
+    let alive = true;
+    setHistoryStatus({ loading: true, error: '' });
+    (async () => {
+      const saved = await attemptStore.flush();
+      const [attempts, legacy] = await Promise.all([
+        readAll(base44.entities.SmallGroupAssessmentAttempt, { student_id: showHistoryFor, school_year: ACTIVE_SCHOOL_YEAR }),
+        readAll(base44.entities.SmallGroupAssessment, { school_year: ACTIVE_SCHOOL_YEAR }),
+      ]);
+      const entries = mergeStudentHistory(showHistoryFor, legacy, [...attempts, ...attemptStore.snapshots(session?.id).filter(r => r.student_id === showHistoryFor)]);
+      if (alive) {
+        setFullHistory(prev => ({ ...prev, [showHistoryFor]: entries }));
+        setHistoryStatus({ loading: false, error: saved ? '' : 'Some latest scores are waiting to save. Keep this page open and retry.' });
+      }
+    })().catch(() => {
+      if (alive) setHistoryStatus({ loading: false, error: 'Could not load all student history. Retry to see the complete record.' });
+    });
+    return () => { alive = false; };
+  }, [showHistoryFor, historyRefresh, attemptStore, session?.id]);
 
   const studentMap = useMemo(() => {
     const map = {};
@@ -240,8 +304,11 @@ export default function SmallGroupAssessment() {
         }
       }
     }
+    for (const studentId of new Set([...Object.keys(map), ...attemptRows.map(r => r.student_id)])) {
+      map[studentId] = mergeStudentHistory(studentId, history, attemptRows.filter(r => r.student_id === studentId));
+    }
     return map;
-  }, [history]);
+  }, [history, attemptRows]);
 
   const groupStudents = useMemo(
     () => assignments
@@ -404,39 +471,28 @@ export default function SmallGroupAssessment() {
 
   const persistResults = useCallback((newResults) => {
     if (!session) return Promise.resolve();
-    return base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
-  }, [session]);
+    resultsRef.current = newResults;
+    attemptStore.stage(session, newResults);
+    return attemptStore.flush();
+  }, [session, attemptStore]);
 
-  const resultsDebounceRef = useRef(null);
-  const pendingResultsRef = useRef(null);
   const persistResultsDebounced = useCallback((newResults) => {
     if (!session) return;
-    pendingResultsRef.current = newResults;
-    if (resultsDebounceRef.current) clearTimeout(resultsDebounceRef.current);
-    resultsDebounceRef.current = setTimeout(() => {
-      resultsDebounceRef.current = null;
-      const toWrite = pendingResultsRef.current;
-      if (toWrite) {
-        base44.entities.SmallGroupAssessment.update(session.id, { results: toWrite }).catch(() => {});
-      }
-    }, 500);
-  }, [session]);
+    resultsRef.current = newResults;
+    // Capture durably now; only the network write is debounced.
+    attemptStore.stage(session, newResults);
+  }, [session, attemptStore]);
 
   const flushResults = useCallback(() => {
-    if (resultsDebounceRef.current) {
-      clearTimeout(resultsDebounceRef.current);
-      resultsDebounceRef.current = null;
-    }
-    if (pendingResultsRef.current && session) {
-      base44.entities.SmallGroupAssessment.update(session.id, { results: pendingResultsRef.current }).catch(() => {});
-    }
-  }, [session]);
+    if (session) attemptStore.stage(session, resultsRef.current);
+    return attemptStore.flush();
+  }, [session, attemptStore]);
 
   // Update student's mode_progress
   const updateModeProgress = useCallback(async (student, type, result) => {
     if (!student || !result) return;
     const isLetter = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(type);
-    const modeKey = isLetter ? 'letter_sounds' : 'sight_words_easy';
+    const modeKey = isLetter ? 'letter_sounds' : type === 'decoding' ? 'decoding' : 'sight_words_easy';
     const current = student.mode_progress?.[modeKey] || {
       mastered_items: [], learning_items: [], item_attempts: {},
       total_correct: 0, total_attempts: 0,
@@ -468,6 +524,7 @@ export default function SmallGroupAssessment() {
     };
     try {
       await base44.entities.Student.update(student.id, { mode_progress: newModeProgress });
+      student.mode_progress = newModeProgress;
     } catch {}
   }, []);
 
@@ -568,11 +625,35 @@ export default function SmallGroupAssessment() {
   const startAssessment = async (student, overrideType) => {
     // If switching from sight words with an active recording, stop and save it first
     if (assessmentType === 'sight_words' && assessingStudentId && (recorder.state === 'recording' || recorder.state === 'paused')) {
-      await stopAndSaveRecording(assessingStudentId);
+      const fileUri = await stopAndSaveRecording(assessingStudentId);
+      if (fileUri) {
+        const latest = resultsRef.current;
+        const updated = {
+          ...latest, [assessingStudentId]: {
+            ...latest[assessingStudentId], sight_words: {
+              ...latest[assessingStudentId]?.sight_words,
+              recording_url: fileUri, recording_timeline: recordingTimeline,
+            },
+          },
+        };
+        setResults(updated);
+        void persistResults(updated);
+      }
       recorder.reset();
     }
 
     const type = overrideType || assessmentType;
+    // Commit the outgoing attempt snapshot before a same-session reassessment
+    // replaces its UI slot. Never wait for scores to send the next live item.
+    if (session) attemptStore.stage(session, resultsRef.current);
+    const metadata = {
+      _attempt_id: crypto.randomUUID(), _started_at: new Date().toISOString(),
+      _language: student.language || 'es',
+      _curriculum: {
+        module: classConfigs[student.class_name]?.active_spanish_module || 1,
+        lesson: classConfigs[student.class_name]?.active_spanish_lesson || 1,
+      },
+    };
     if (overrideType) setAssessmentType(overrideType);
     setTeacherNote('');
 
@@ -582,7 +663,7 @@ export default function SmallGroupAssessment() {
       const moduleNum = config?.active_spanish_module || 1;
       const lessonNum = config?.active_spanish_lesson || 1;
 
-      const existing = results[student.id]?.['decoding'];
+      const existing = resultsRef.current[student.id]?.['decoding'];
       if (existing && !existing.completed) {
         setAssessingStudentId(student.id);
         const level = existing.levels?.[existing.current_level];
@@ -602,6 +683,7 @@ export default function SmallGroupAssessment() {
           return;
         }
         const newDecoding = {
+          ...metadata,
           current_level: 'CV',
           levels: {
             CV: {
@@ -614,9 +696,9 @@ export default function SmallGroupAssessment() {
           notes: {},
         };
         const newResults = {
-          ...results,
+          ...resultsRef.current,
           [student.id]: {
-            ...(results[student.id] || {}),
+            ...(resultsRef.current[student.id] || {}),
             decoding: newDecoding,
           },
         };
@@ -634,7 +716,7 @@ export default function SmallGroupAssessment() {
     }
 
     // Regular assessment types
-    const existing = results[student.id]?.[type];
+    const existing = resultsRef.current[student.id]?.[type];
     if (existing && !existing.completed && existing.current_index < existing.item_order.length) {
       setAssessingStudentId(student.id);
       broadcastItem(existing.item_order[existing.current_index], student, {
@@ -650,14 +732,15 @@ export default function SmallGroupAssessment() {
       const isLetterType = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(type);
       const itemOrder = isLetterType ? pool : shuffle(pool);
       const newResult = {
+        ...metadata,
         correct: [], incorrect: [], attempted: [],
         item_order: itemOrder, current_index: 0, completed: false,
         notes: {},
       };
       const newResults = {
-        ...results,
+        ...resultsRef.current,
         [student.id]: {
-          ...(results[student.id] || {}),
+          ...(resultsRef.current[student.id] || {}),
           [type]: newResult,
         },
       };
@@ -686,10 +769,7 @@ export default function SmallGroupAssessment() {
   const switchAssessmentType = async (newType) => {
     const student = studentMap[assessingStudentId];
     if (!student) return;
-    if (assessmentType === 'sight_words' && (recorder.state === 'recording' || recorder.state === 'paused')) {
-      await stopAndSaveRecording(assessingStudentId);
-      recorder.reset();
-    }
+    // startAssessment preserves the outgoing recording with its own attempt.
     setLastMark(null);
     setTeacherNote('');
     await startAssessment(student, newType);
@@ -787,10 +867,19 @@ export default function SmallGroupAssessment() {
         const fileUri = await stopAndSaveRecording(assessingStudentId);
         if (fileUri) {
           const finalResult = { ...newResult, recording_url: fileUri, recording_timeline: newTimeline };
+          const latest = resultsRef.current;
+          // Uploads may finish after a new assessment has started. Attach the
+          // recording to its original attempt, not the new current UI slot.
+          if (latest[assessingStudentId]?.[assessmentType]?._attempt_id !== newResult._attempt_id) {
+            attemptStore.stage(session, { [assessingStudentId]: { [assessmentType]: finalResult } });
+            void attemptStore.flush();
+            recorder.reset();
+            return;
+          }
           const finalResults = {
-            ...newResults,
+            ...latest,
             [assessingStudentId]: {
-              ...newResults[assessingStudentId],
+              ...latest[assessingStudentId],
               [assessmentType]: finalResult,
             },
           };
@@ -1062,7 +1151,7 @@ export default function SmallGroupAssessment() {
     // Persist all results and broadcast end — saves progress even if teacher
     // exits without hitting E, so refreshes and new sessions don't lose data.
     if (session) {
-      pendingResultsRef.current = latestResults;
+      resultsRef.current = latestResults;
       broadcastNow({ show_item: false, student_id: assessingStudentId, done: true });
       flushResults();
     }
@@ -1107,32 +1196,51 @@ export default function SmallGroupAssessment() {
   // Uses resultsRef to get the latest state without re-subscribing on every mark.
   useEffect(() => {
     if (!session) return;
-    const saveOnUnload = () => {
-      const latest = resultsRef.current;
-      if (latest && Object.keys(latest).length > 0) {
-        base44.entities.SmallGroupAssessment.update(session.id, { results: latest }).catch(() => {});
+    const saveOnUnload = (event) => {
+      attemptStore.stage(session, resultsRef.current);
+      void attemptStore.flush();
+      if (event && attemptStore.hasPending()) {
+        event.preventDefault();
+        event.returnValue = '';
       }
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') saveOnUnload();
     };
     window.addEventListener('beforeunload', saveOnUnload);
+    const retry = () => { void attemptStore.flush(); };
+    window.addEventListener('online', retry);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('beforeunload', saveOnUnload);
+      window.removeEventListener('online', retry);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [session]);
+  }, [session, attemptStore]);
 
   // End session
   const handleEndSession = async () => {
-    if (!session) return;
+    if (!session || endingSession) return;
+    if (!confirm('End this assessment session? Student attempts remain available in Assessment History.')) return;
+    setEndingSession(true);
+    try {
     // Stop any active recording
     if (recorder.state === 'recording' || recorder.state === 'paused') {
-      await stopAndSaveRecording(assessingStudentId);
+      const fileUri = await stopAndSaveRecording(assessingStudentId);
+      if (fileUri && assessingStudentId) {
+        const latest = resultsRef.current;
+        resultsRef.current = {
+          ...latest, [assessingStudentId]: {
+            ...latest[assessingStudentId], sight_words: {
+              ...latest[assessingStudentId]?.sight_words,
+              recording_url: fileUri, recording_timeline: recordingTimeline,
+            },
+          },
+        };
+        setResults(resultsRef.current);
+      }
       recorder.reset();
     }
-    if (!confirm('End this assessment session? You can start a new one later.')) return;
     // Save current results before marking session completed so this round's
     // data is preserved in history for progress monitoring.
     // Finish the ordered display updates before completing this session.
@@ -1143,19 +1251,12 @@ export default function SmallGroupAssessment() {
 
     if (!displaySaved) return;
 
-    // The final save below includes the latest results.
-    // Cancel the pending debounce so it does not write afterward.
-    if (resultsDebounceRef.current) {
-      clearTimeout(resultsDebounceRef.current);
-      resultsDebounceRef.current = null;
-    }
-
-    pendingResultsRef.current = null;
+    // Do not end/reset the session while any student attempt is unsaved.
+    if (!await flushResults()) return;
 
     const completedSession = await base44.entities.SmallGroupAssessment.update(
       session.id,
       {
-        results: resultsRef.current,
         status: 'completed',
         ended_at: new Date().toISOString(),
         broadcast_state: {},
@@ -1174,8 +1275,14 @@ export default function SmallGroupAssessment() {
       broadcast_state: {},
     });
     setSession(created);
+    resultsRef.current = {};
     setResults({});
     setAssessingStudentId(null);
+    } catch {
+      setSaveStatus(prev => ({ ...prev, error: 'Could not finish the session. Saved student attempts are preserved. Retry End Session.' }));
+    } finally {
+      setEndingSession(false);
+    }
   };
 
   // Load recording signed URL for replay
@@ -1204,13 +1311,16 @@ export default function SmallGroupAssessment() {
     };
     setResults(newResults);
     if (session) {
-      base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
+      void persistResults(newResults);
     }
   };
 
   const groupLabel = group.charAt(0).toUpperCase() + group.slice(1);
 
   // ── Loading ──────────────────────────────────────────────────────────
+  if (loadError) {
+    return <div role="alert" className="p-6 text-red-800">{loadError} <button className="underline" onClick={() => window.location.reload()}>Retry loading</button></div>;
+  }
   if (loading || !students) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -1242,6 +1352,7 @@ export default function SmallGroupAssessment() {
 
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
+        <AssessmentSaveStatus status={saveStatus} onRetry={flushResults} />
         {broadcastError && (
           <div
             role="alert"
@@ -1544,6 +1655,7 @@ export default function SmallGroupAssessment() {
   // ── Student list view ────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50">
+      <AssessmentSaveStatus status={saveStatus} onRetry={flushResults} />
       <header className="border-b bg-white sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
@@ -1559,9 +1671,10 @@ export default function SmallGroupAssessment() {
             <div className="flex-1" />
             <button
               onClick={handleEndSession}
+              disabled={endingSession}
               className="text-sm font-medium text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg hover:bg-red-50"
             >
-              End Session
+              {endingSession ? 'Saving…' : 'End Session'}
             </button>
           </div>
 
@@ -1606,7 +1719,10 @@ export default function SmallGroupAssessment() {
             {showHistoryFor && studentMap[showHistoryFor] && (
               <AssessmentHistory
                 student={studentMap[showHistoryFor]}
-                history={studentHistory[showHistoryFor] || []}
+                history={fullHistory[showHistoryFor] || studentHistory[showHistoryFor] || []}
+                loading={historyStatus.loading}
+                error={historyStatus.error}
+                onRetry={() => setHistoryRefresh(n => n + 1)}
                 onClose={() => setShowHistoryFor(null)}
               />
             )}
@@ -1660,7 +1776,7 @@ export default function SmallGroupAssessment() {
                     const reachedLevel = r.current_level;
                     statusLabel = `Done — reached ${reachedLevel} (${totalCorrect}/${totalItems})`;
                     statusClass = 'text-green-600';
-                    buttonLabel = 'Review';
+                    buttonLabel = 'Reassess';
                     buttonClass = 'bg-slate-100 text-slate-600 hover:bg-slate-200';
                   } else if (r) {
                     const level = r.levels?.[r.current_level];
@@ -1729,11 +1845,12 @@ export default function SmallGroupAssessment() {
                       >
                         {buttonLabel}
                       </button>
-                      {hasHistory && (
+                      {(
                         <button
                           onClick={() => setShowHistoryFor(student.id)}
                           className="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
                           title="View assessment history"
+                          aria-label={`View assessment history for ${student.name}`}
                         >
                           <BarChart3 className="w-4 h-4" />
                         </button>

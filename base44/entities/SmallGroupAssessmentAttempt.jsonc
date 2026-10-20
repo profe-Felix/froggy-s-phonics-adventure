@@ -1,0 +1,21 @@
+{
+  "name": "SmallGroupAssessmentAttempt",
+  "type": "object",
+  "properties": {
+    "attempt_key": { "type": "string" },
+    "student_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "assessment_type": { "type": "string" },
+    "school_year": { "type": "string" },
+    "teacher_name": { "type": "string" },
+    "block": { "type": "string" },
+    "color_group": { "type": "string" },
+    "language": { "type": "string" },
+    "started_at": { "type": "string" },
+    "saved_at": { "type": "string" },
+    "completed": { "type": "boolean" },
+    "result": { "type": "object", "default": {} }
+  },
+  "required": ["attempt_key", "student_id", "session_id", "assessment_type", "school_year", "result"],
+  "rls": { "read": {}, "create": {}, "update": {}, "delete": {} }
+}
