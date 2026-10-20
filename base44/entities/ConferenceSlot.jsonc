@@ -42,10 +42,11 @@
       "enum": [
         "scheduled",
         "completed",
-        "missed"
+        "missed",
+        "rescheduled"
       ],
       "default": "scheduled",
-      "description": "Teacher's meeting outcome tracking. scheduled = upcoming/default, completed = meeting held, missed = family didn't show. Completed slots are excluded from print confirmations."
+      "description": "Teacher's meeting outcome tracking. scheduled = upcoming/default, completed = meeting held, missed = family didn't show, rescheduled = teacher marked for a different time. Marking rescheduled does not move or reopen the slot. Completed slots are excluded from print confirmations."
     },
     "parent_name": {
       "type": "string",

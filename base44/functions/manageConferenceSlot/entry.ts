@@ -10,7 +10,7 @@ export default async function(req) {
     const body = await req.json();
     const slot_id = body?.slot_id;
     const action = body?.action; // 'cancel' | 'delete' | 'set_meeting_status'
-    const meeting_status = body?.meeting_status; // for set_meeting_status: 'scheduled' | 'completed' | 'missed'
+    const meeting_status = body?.meeting_status; // 'scheduled' | 'completed' | 'missed' | 'rescheduled'
 
     if (!slot_id || !action) {
       return Response.json({ error: 'Missing slot_id or action' }, { status: 400 });
@@ -30,6 +30,7 @@ export default async function(req) {
     if (action === 'cancel') {
       await svc.entities.ConferenceSlot.update(slot_id, {
         status: 'open',
+        meeting_status: 'scheduled',
         parent_name: '',
         student_name: '',
         parent_phone: '',
@@ -42,7 +43,7 @@ export default async function(req) {
       waitUntil(syncSlotToSheet(svc, slot, 'delete').catch(() => {}));
       await svc.entities.ConferenceSlot.delete(slot_id);
     } else if (action === 'set_meeting_status') {
-      if (!['scheduled', 'completed', 'missed'].includes(meeting_status)) {
+      if (!['scheduled', 'completed', 'missed', 'rescheduled'].includes(meeting_status)) {
         return Response.json({ error: 'Invalid meeting_status' }, { status: 400 });
       }
       await svc.entities.ConferenceSlot.update(slot_id, { meeting_status });

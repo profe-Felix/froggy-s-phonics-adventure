@@ -2,18 +2,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { minutesToTime, formatLongDate } from '@/lib/conferenceUtils';
 import { Trash2, RotateCcw, Check, Clock, X } from 'lucide-react';
+import { nextMeetingStatus } from '@/lib/conferenceMeetingStatus.mjs';
 
 const MEETING_STATUSES = [
   { key: 'scheduled', label: 'Scheduled', icon: Clock, color: 'amber', bg: 'bg-amber-100 border-amber-300 text-amber-700', dot: 'bg-amber-400' },
   { key: 'completed', label: 'Completed', icon: Check, color: 'emerald', bg: 'bg-emerald-100 border-emerald-300 text-emerald-700', dot: 'bg-emerald-500' },
   { key: 'missed', label: 'Missed', icon: X, color: 'rose', bg: 'bg-rose-100 border-rose-300 text-rose-700', dot: 'bg-rose-500' },
+  { key: 'rescheduled', label: 'Rescheduled', icon: RotateCcw, color: 'violet', bg: 'bg-violet-100 border-violet-300 text-violet-700', dot: 'bg-violet-500' },
 ];
 
 const statusByKey = (key) => MEETING_STATUSES.find((s) => s.key === key) || MEETING_STATUSES[0];
-const nextStatus = (key) => {
-  const i = MEETING_STATUSES.findIndex((s) => s.key === key);
-  return MEETING_STATUSES[(i + 1) % MEETING_STATUSES.length].key;
-};
 
 export default function SlotList({ slots, conferenceId }) {
   const queryClient = useQueryClient();
@@ -28,7 +26,11 @@ export default function SlotList({ slots, conferenceId }) {
     onSuccess: invalidate,
   });
   const setMeetingStatus = useMutation({
-    mutationFn: ({ id, meeting_status }) => base44.functions.invoke('manageConferenceSlot', { slot_id: id, action: 'set_meeting_status', meeting_status }),
+    mutationFn: async ({ id, meeting_status }) => {
+      const result = await base44.functions.invoke('manageConferenceSlot', { slot_id: id, action: 'set_meeting_status', meeting_status });
+      if (result?.data?.success !== true) throw new Error('Meeting status was not saved.');
+      return result;
+    },
     onSuccess: invalidate,
   });
 
@@ -43,6 +45,7 @@ export default function SlotList({ slots, conferenceId }) {
 
   return (
     <div className="space-y-5">
+      {setMeetingStatus.isError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">Could not save the meeting status. Please try again.</p>}
       {dates.map((d) => (
         <div key={d}>
           <h4 className="font-bold text-slate-700 mb-2">{formatLongDate(d)}</h4>
@@ -66,9 +69,11 @@ export default function SlotList({ slots, conferenceId }) {
                   <div className="flex gap-1 items-center shrink-0">
                     {s.status === 'booked' && (
                       <button
-                        onClick={() => setMeetingStatus.mutate({ id: s.id, meeting_status: nextStatus(s.meeting_status || 'scheduled') })}
-                        title={`Meeting status: ${ms.label} (click to change)`}
-                        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold active:scale-90 transition ${ms.bg}`}
+                        onClick={() => setMeetingStatus.mutate({ id: s.id, meeting_status: nextMeetingStatus(s.meeting_status || 'scheduled') })}
+                        disabled={setMeetingStatus.isPending}
+                        title={`Meeting status: ${ms.label} (click to change to ${statusByKey(nextMeetingStatus(s.meeting_status || 'scheduled')).label})`}
+                        aria-label={`Meeting status: ${ms.label}`}
+                        className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold active:scale-90 transition disabled:opacity-50 ${ms.bg}`}
                       >
                         <StatusIcon className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">{ms.label}</span>
