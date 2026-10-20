@@ -12,14 +12,34 @@ export function buildPreviewCatalog(records, className) {
     group.push(a); groups.set(key, group);
   }
   return [...groups.values()].map(group => {
-    // Keep this class's saved work identity when historical duplicates exist.
-    group.sort((a, b) => Number(b.class_name === className) - Number(a.class_name === className) ||
-      Number(b.shared_across_classes === true) - Number(a.shared_across_classes === true) ||
+    // Prefer the original shared assignment, not an unused class copy.
+    // Explicit copy links still select their exact saved work identity.
+    group.sort((a, b) => Number(b.shared_across_classes === true) - Number(a.shared_across_classes === true) ||
+      String(a.created_date || a.id).localeCompare(String(b.created_date || b.id)) ||
       String(a.id).localeCompare(String(b.id)));
     const a = group[0];
     return { id: a.id, title: a.title || "Untitled notebook", pageCount: a.pdf_page_count,
       status: a.status, aliases: group.map(row => row.id) };
   }).sort((a, b) => a.title.localeCompare(b.title));
+}
+
+export function previewClassSelection(records, assignment, className, page) {
+  const catalog = buildPreviewCatalog(records, className);
+  const group = assignment && catalog.find(a => a.aliases.includes(assignment.id));
+  const equivalent = group || (assignment && catalog.find(a => {
+    const candidate = records.find(row => row.id === a.id);
+    return candidate?.title?.trim().toLowerCase() === assignment.title?.trim().toLowerCase() &&
+      candidate?.pdf_url === assignment.pdf_url && candidate?.pdf_page_count === assignment.pdf_page_count;
+  }));
+  if (!equivalent) return { class: className, assignment: "", page: "" };
+  return { class: className, assignment: group ? assignment.id : equivalent.id,
+    page: String(Math.max(1, Math.min(Number.isSafeInteger(page) ? page : 1, equivalent.pageCount))) };
+}
+
+export function parsePreviewPage(value, pages) {
+  if (!/^[1-9]\d*$/.test(String(value))) return null;
+  const page = Number(value);
+  return Number.isSafeInteger(page) && pages.includes(page) ? page : null;
 }
 
 export function previewNotebookContext({ assignment, className, schoolYear, page }) {

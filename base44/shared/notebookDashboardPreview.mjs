@@ -54,5 +54,8 @@ export async function bootstrapDashboardPreview({
       session.workbook?.pageCount !== assignment.pdf_page_count) {
     return reply("The view-only notebook response could not be verified.", 503);
   }
-  return Response.json({ ...session, backendOrigin: notebookOrigin }, { headers });
+  // PDF image sets are deduplicated. Their original import title may belong to
+  // a test assignment; display the selected assignment without rebinding ink.
+  return Response.json({ ...session, workbook: { ...session.workbook, title: assignment.title || "Notebook" },
+    backendOrigin: notebookOrigin }, { headers });
 }

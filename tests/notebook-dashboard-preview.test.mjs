@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { buildPreviewCatalog, previewNotebookContext, validatePreviewSession } from "../src/lib/external-notebook/dashboard-preview-model.js";
+import { buildPreviewCatalog, previewNotebookContext, validatePreviewSession, previewClassSelection, parsePreviewPage } from "../src/lib/external-notebook/dashboard-preview-model.js";
 import { bootstrapDashboardPreview } from "../base44/shared/notebookDashboardPreview.mjs";
 
 const book = { id: "a", title: "Letters", class_name: "Felix", status: "active",
@@ -43,6 +43,48 @@ test("preview page context is teacher assignment scope and never live controls",
   assert.equal(context.phase, undefined);
 });
 
+test("all classes default to the original shared assignment, not empty local copies", () => {
+  const original = { ...book, id: "69d650c08c922889cd55c561", title: "Aprende y Demuestra" };
+  const copies = [original,
+    { ...original, id: "6aa812099d65ee8c67e01103", class_name: "Gutierrez" },
+    { ...original, id: "69f6c2d1326aee0fc6e2658e", class_name: "Valero" }];
+  for (const name of ["Felix", "Valero", "Gutierrez"]) {
+    const catalog = buildPreviewCatalog(copies, name);
+    assert.equal(catalog.length, 1);
+    assert.equal(catalog[0].id, original.id);
+    assert.equal(catalog[0].aliases.length, 3);
+  }
+});
+
+test("class switches retain exact shared assignment and page, including explicitly selected copies", () => {
+  const copy = { ...book, id: "b", class_name: "Valero" };
+  for (const assignment of [book, copy]) {
+    for (const name of ["Felix", "Valero", "Gutierrez"]) {
+      assert.deepEqual(previewClassSelection([book, copy], assignment, name, 61),
+        { class: name, assignment: assignment.id, page: "61" });
+    }
+  }
+});
+
+test("private equivalents match by title AND PDF, and unavailable assignments never pick a different notebook", () => {
+  const original = { ...book, shared_across_classes: false };
+  const equivalent = { ...original, id: "b", class_name: "Valero" };
+  const other = { ...equivalent, id: "c", pdf_url: "https://files.example/different.pdf" };
+  assert.equal(previewClassSelection([original, equivalent, other], original, "Valero", 61).assignment, "b");
+  assert.deepEqual(previewClassSelection([original, other], original, "Valero", 61),
+    { class: "Valero", assignment: "", page: "" });
+  assert.equal(previewClassSelection([book], book, "Valero", 999).page, "200");
+});
+
+test("typed pages accept valid whole numbers and reject empty, fractional, out of range, and nonnumeric values", () => {
+  const pages = Array.from({ length: 206 }, (_, i) => i + 1);
+  assert.equal(parsePreviewPage("61", pages), 61);
+  assert.equal(parsePreviewPage("206", pages), 206);
+  for (const value of ["", "0", "-1", "61.5", "207", "6e1", "abc"]) {
+    assert.equal(parsePreviewPage(value, pages), null);
+  }
+});
+
 test("preview accepts ended classroom monitoring but rejects write authority, wrong class or wrong source", () => {
   const context = { assignmentId: "a", className: "Felix" };
   assert.equal(validatePreviewSession(session, context, session.backendOrigin, now), session);
@@ -65,6 +107,9 @@ test("standalone bootstrap mints only a read-only assignment capability; it neve
   assert.equal(request.sourceId, "a");
   assert.equal(request.studentId, undefined);
   assert.equal(calls[0].options.redirect, "manual");
+  const displayed = await response.json();
+  assert.equal(displayed.workbook.title, book.title);
+  assert.equal(displayed.workbook.id, session.workbookId);
 });
 
 test("browser cannot provide permissions, student identity, unapproved class, or wrong year", async () => {
@@ -86,7 +131,13 @@ test("bootstrap rejects unexpected upstream capabilities and reports an unpublis
 test("new preview UI stays isolated from old dashboards and invokes no entity mutations", async () => {
   const page = await fs.readFile(new URL("../src/pages/NotebookDashboardPreview.jsx", import.meta.url), "utf8");
   const monitor = await fs.readFile(new URL("../src/components/external-notebook/NotebookDashboardMonitor.jsx", import.meta.url), "utf8");
+  const runtime = await fs.readFile(new URL("../src/lib/external-notebook/dashboard-preview-runtime.jsx", import.meta.url), "utf8");
   assert.doesNotMatch(page, /entities\.\w+\.(create|update|delete)\(/);
   assert.doesNotMatch(monitor, /externalNotebookControl|bootstrapExternalNotebook|\.open\(\)/);
   assert.match(monitor, /host\.start\(\)/);
+  assert.match(monitor, /page: undefined/);
+  assert.match(page, /onPageChange=\{next => setFilters/);
+  assert.match(runtime, /onPageChange\?\.\(page\)/);
+  assert.match(runtime, /type="number"/);
+  assert.match(runtime, /NotebookTeacherView state=\{latest\} onSetPage=\{setPage\}/);
 });

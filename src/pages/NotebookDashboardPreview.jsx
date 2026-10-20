@@ -7,7 +7,7 @@ import { base44 } from "@/api/base44Client";
 import { useClassNames } from "@/hooks/useClassNames";
 import { ACTIVE_SCHOOL_YEAR } from "@/lib/schoolYear";
 import { EXTERNAL_NOTEBOOK_CONFIG } from "@/lib/external-notebook/config";
-import { buildPreviewCatalog, previewNotebookContext } from "@/lib/external-notebook/dashboard-preview-model.js";
+import { buildPreviewCatalog, previewNotebookContext, previewClassSelection } from "@/lib/external-notebook/dashboard-preview-model.js";
 import NotebookDashboardMonitor from "@/components/external-notebook/NotebookDashboardMonitor";
 
 const ASSIGNMENT_LIMIT = 500;
@@ -123,7 +123,10 @@ export default function NotebookDashboardPreview() {
                     return (
                       <li key={name}>
                         <button type="button" disabled={!ok} data-testid={`button-class-${name}`}
-                          onClick={() => { setSearch(""); setFilters({ class: name, assignment: "", page: "" }); }}
+                          onClick={() => {
+                            setSearch("");
+                            setFilters(previewClassSelection(assignments, rawAssignment, name, context?.page || page || 1));
+                          }}
                           className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${active ? "bg-sky-700 text-white" : ok ? "bg-slate-50 text-slate-700 hover:bg-sky-100" : "cursor-not-allowed bg-slate-50 text-slate-400"}`}>
                           <span className="font-medium">{name}</span>
                           {!ok && <span className="block text-xs">Not enabled for new notebooks yet</span>}
@@ -198,7 +201,8 @@ export default function NotebookDashboardPreview() {
                   <span className="mt-1 block text-xs text-slate-500">Copies use the same PDF but keep separate student work. Select the copy your students used.</span>
                 </label>}
                 <p className="text-xs text-slate-500">If a page shows no ink, there is no new-notebook work on that page. Work done in the old notebook remains in the original dashboard.</p>
-                <NotebookDashboardMonitor key={`${className}:${context.assignmentId}`} context={context} roster={roster} />
+                <NotebookDashboardMonitor key={`${className}:${context.assignmentId}`} context={context}
+                  onPageChange={next => setFilters({ page: String(next) })} />
               </section>
             )}
           </main>
