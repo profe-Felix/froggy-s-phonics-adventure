@@ -2,6 +2,11 @@
   "name": "LessonBooks",
   "type": "object",
   "properties": {
+    "subject": {
+      "type": "string",
+      "enum": ["df", "lv"],
+      "description": "Curriculum owning this lesson association. Legacy records without a subject are interpreted from their linked books."
+    },
     "lesson_key": {
       "type": "string",
       "description": "Lesson key e.g. 'M2.L1'. One record per lesson. Solo lessons have 1 book_id, comparison lessons have 2."

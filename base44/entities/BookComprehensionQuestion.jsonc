@@ -2,6 +2,11 @@
   "name": "BookComprehensionQuestion",
   "type": "object",
   "properties": {
+    "subject": {
+      "type": "string",
+      "enum": ["df", "lv"],
+      "description": "Curriculum owning this question. Optional for historical questions; new questions always specify DF or LV."
+    },
     "book_id": {
       "type": "string",
       "description": "Stable BookCatalog ID for a book-scoped question. page_number is local to this book."

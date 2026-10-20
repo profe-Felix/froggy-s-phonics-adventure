@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Presentation, ArrowLeft, BookOpen, XCircle, Uploa
 import MarkEditor from '@/components/book/MarkEditor';
 import ComparisonReader from '@/components/book/ComparisonReader';
 import { bookPageCount, resolveQuestionTarget, questionTargetFields, questionLabel } from '@/lib/book/comprehension.mjs';
+import { entityItems, selectComprehension } from '@/lib/book/curriculum.mjs';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
@@ -353,58 +354,64 @@ function BookPicker({ lessonKey, module, books, catalog, onSave, onDeleteCatalog
 // ── Main page ─────────────────────────────────────────────────
 export default function BookComprehension() {
   const qc = useQueryClient();
-  const [module, setModule] = useState(() => localStorage.getItem('bcq_module') || 'M1');
-  const [lesson, setLesson] = useState(() => localStorage.getItem('bcq_lesson') || 'L1');
+  const [subject, setSubject] = useState(() => localStorage.getItem('bcq_subject') === 'lv' ? 'lv' : 'df');
+  const [module, setModule] = useState(() => localStorage.getItem(`bcq_${localStorage.getItem('bcq_subject') === 'lv' ? 'lv' : 'df'}_module`) || localStorage.getItem('bcq_module') || 'M1');
+  const [lesson, setLesson] = useState(() => localStorage.getItem(`bcq_${localStorage.getItem('bcq_subject') === 'lv' ? 'lv' : 'df'}_lesson`) || localStorage.getItem('bcq_lesson') || 'L1');
   const [editing, setEditing] = useState(null); // null | 'new' | record
   const [presenting, setPresenting] = useState(false);
   const [filter, setFilter] = useState('all');
   const lessonKey = `${module}.${lesson}`;
 
-  useEffect(() => { localStorage.setItem('bcq_module', module); }, [module]);
-  useEffect(() => { localStorage.setItem('bcq_lesson', lesson); }, [lesson]);
+  useEffect(() => { localStorage.setItem('bcq_subject', subject); }, [subject]);
+  useEffect(() => { localStorage.setItem(`bcq_${subject}_module`, module); }, [subject, module]);
+  useEffect(() => { localStorage.setItem(`bcq_${subject}_lesson`, lesson); }, [subject, lesson]);
+  useEffect(() => { setFilter('all'); }, [subject, module, lesson]);
+  const changeSubject = value => {
+    setSubject(value);
+    setModule(localStorage.getItem(`bcq_${value}_module`) || 'M1');
+    setLesson(localStorage.getItem(`bcq_${value}_lesson`) || 'L1');
+  };
 
   // Questions for this lesson
-  const { data: questions = [], isLoading } = useQuery({
+  const { data: allQuestions = [], isLoading, error: questionError } = useQuery({
     queryKey: ['book-comp-questions', lessonKey],
     queryFn: async () => {
       const res = await base44.entities.BookComprehensionQuestion.filter(
         { lesson_key: lessonKey },
-        { sort: 'page_number', limit: 100 }
+        { sort: 'page_number', limit: 1000 }
       );
-      return res.items.sort(
+      return entityItems(res).sort(
         (a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.page_number || 0) - (b.page_number || 0)
       );
     },
   });
 
   // BookCatalog books for this module
-  const { data: catalog = [] } = useQuery({
-    queryKey: ['book-catalog', module],
+  const { data: allCatalog = [], isLoading: catalogLoading, error: catalogError } = useQuery({
+    queryKey: ['book-catalog', 'curricula'],
     queryFn: async () => {
-      const res = await base44.entities.BookCatalog.filter(
-        { module },
-        { sort: 'title', limit: 100 }
-      );
-      return res.items;
+      return entityItems(await base44.entities.BookCatalog.list({ sort: 'title', limit: 1000 }));
     },
   });
 
   // LessonBooks association for this lesson
-  const { data: lessonBooks } = useQuery({
+  const { data: associations = [], isLoading: linksLoading, error: linksError } = useQuery({
     queryKey: ['lesson-books', lessonKey],
     queryFn: async () => {
       const res = await base44.entities.LessonBooks.filter(
         { lesson_key: lessonKey },
-        { limit: 1 }
+        { sort: '-updated_date', limit: 100 }
       );
-      return res.items[0] || null;
+      return entityItems(res);
     },
   });
 
   // Resolve book objects from catalog
-  const books = (lessonBooks?.book_ids || [])
-    .map(id => catalog.find(b => b.id === id))
-    .filter(Boolean);
+  const { books, questions, lessonBooks, catalog } = selectComprehension({
+    subject, associations, questions: allQuestions, catalog: allCatalog, module,
+  });
+  const loading = isLoading || catalogLoading || linksLoading;
+  const loadError = questionError || catalogError || linksError;
 
   // Delete a book from the catalog entirely (removes it from every lesson)
   const deleteCatalogMutation = useMutation({
@@ -413,7 +420,7 @@ export default function BookComprehension() {
       // Clean up any LessonBooks associations referencing this book
       try {
         const res = await base44.entities.LessonBooks.filter({ book_ids: bookId }, { limit: 100 });
-        await Promise.all((res.items || []).map(lb =>
+        await Promise.all(entityItems(res).map(lb =>
           base44.entities.LessonBooks.update(lb.id, {
             book_ids: (lb.book_ids || []).filter(id => id !== bookId),
           })
@@ -432,15 +439,20 @@ export default function BookComprehension() {
       if (lessonBooks?.id) {
         await base44.entities.LessonBooks.update(lessonBooks.id, { book_ids });
       } else {
-        await base44.entities.LessonBooks.create({ lesson_key: lessonKey, book_ids });
+        await base44.entities.LessonBooks.create({ lesson_key: lessonKey, subject, book_ids });
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lesson-books', lessonKey] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lesson-books', lessonKey] });
+      qc.invalidateQueries({ queryKey: ['cmp-lesson-books', lessonKey] });
+      qc.invalidateQueries({ queryKey: ['book-reader-questions-v2'] });
+    },
   });
 
   const saveMutation = useMutation({
     mutationFn: async ({ id, question_text, sentence_stem, page_number, book_id, question_scope, extra_page, mark, anchor_chart_url }) => {
       const fields = {
+        subject,
         question_text,
         sentence_stem,
         page_number: page_number || 0,
@@ -482,7 +494,10 @@ export default function BookComprehension() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.BookComprehensionQuestion.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] });
+      qc.invalidateQueries({ queryKey: ['book-reader-questions-v2'] });
+    },
   });
 
   const reorderMutation = useMutation({
@@ -519,18 +534,25 @@ export default function BookComprehension() {
 
         {/* Lesson picker */}
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label htmlFor="bcq-curriculum" className="text-sm font-bold text-slate-600">Curriculum</label>
+          <select id="bcq-curriculum" aria-label="Curriculum" value={subject} onChange={e => changeSubject(e.target.value)}
+            disabled={!!editing || presenting || bookMutation.isPending || saveMutation.isPending || deleteMutation.isPending || reorderMutation.isPending}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+            <option value="df">DF</option><option value="lv">LV</option>
+          </select>
           <span className="text-sm font-bold text-slate-600">Lesson</span>
-          <select value={module} onChange={e => setModule(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+          <select aria-label="Module" disabled={!!editing || bookMutation.isPending || saveMutation.isPending || deleteMutation.isPending || reorderMutation.isPending} value={module} onChange={e => setModule(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
             {MODULES.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          <select value={lesson} onChange={e => setLesson(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+          <select aria-label="Lesson" disabled={!!editing || bookMutation.isPending || saveMutation.isPending || deleteMutation.isPending || reorderMutation.isPending} value={lesson} onChange={e => setLesson(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
             {LESSONS.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
-          <span className="text-sm font-black text-indigo-600">{lessonKey}</span>
+          <span className="text-sm font-black text-indigo-600">{subject.toUpperCase()} · {lessonKey}</span>
           <div className="ml-auto flex items-center gap-2">
             {questions.length > 0 && (
               <button
                 onClick={() => setPresenting(true)}
+                disabled={loading || !!loadError}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-md hover:bg-indigo-700"
               >
                 <Presentation className="h-4 w-4" />
@@ -539,6 +561,7 @@ export default function BookComprehension() {
             )}
             <button
               onClick={() => setEditing('new')}
+              disabled={loading || !!loadError}
               className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-md hover:bg-green-700"
             >
               <Plus className="h-4 w-4" />
@@ -547,15 +570,17 @@ export default function BookComprehension() {
           </div>
         </div>
 
+        {loadError && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">Could not load this lesson. Refresh to retry; existing questions were not changed.</p>}
         {/* Book picker */}
-        <BookPicker
+        {!loading && !loadError && <BookPicker
+          key={`${subject}:${lessonKey}`}
           lessonKey={lessonKey}
           module={module}
           books={books}
           catalog={catalog}
           onSave={(book_ids) => bookMutation.mutate(book_ids)}
           onDeleteCatalog={(id) => deleteCatalogMutation.mutate(id)}
-        />
+        />}
 
         {/* Filter */}
         {questions.length > 0 && (
@@ -573,7 +598,7 @@ export default function BookComprehension() {
         )}
 
         {/* Question list */}
-        {isLoading ? (
+        {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
           </div>
