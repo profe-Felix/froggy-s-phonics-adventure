@@ -12,9 +12,10 @@ import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
 import HtmlBookReview from './HtmlBookReview';
 import { parseHtmlPage } from '@/lib/htmlBookParser';
+import LessonChecklist from './LessonChecklist';
+import { bookLessonTags, lessonTagUpdate, updateBookMetadata } from '@/lib/book/lessonTags.mjs';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
-const LESSONS = ['', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17', 'L18', 'L19', 'L20'];
 
 const SUBJECTS = [
   { value: 'lv', label: '📖 Lectura y Vocabulario (LV)', short: '📖 LV' },
@@ -30,7 +31,8 @@ export default function TeacherBookDashboard({ onBack }) {
   } = useClassNames();
   const [className, setClassName] = useState(CLASS_NAMES[0] || 'Felix');
   const [newModule, setNewModule] = useState('');
-  const [newLesson, setNewLesson] = useState('');
+  const [newLessons, setNewLessons] = useState([]);
+  const newLesson = newLessons[0] || '';
   const [newSubject, setNewSubject] = useState('lv');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);
@@ -208,8 +210,13 @@ export default function TeacherBookDashboard({ onBack }) {
     );
 
   const updateBook = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.BookAssignment.update(id, data),
-    onSuccess: () => qc.invalidateQueries(['books-all', className]),
+    mutationFn: ({ id, data, book }) => updateBookMetadata(base44.entities, book || books.find(b => b.id === id) || { id }, data),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['books-all'] });
+      qc.invalidateQueries({ queryKey: ['book-catalog'] });
+      qc.invalidateQueries({ queryKey: ['book-reader-questions-v2'] });
+    },
+    onError: () => alert('The book update could not finish. Please retry; some metadata may already have saved.'),
   });
 
   const deleteBook = useMutation({
@@ -259,6 +266,7 @@ export default function TeacherBookDashboard({ onBack }) {
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
         lesson: newLesson || '',
+        lessons: newLessons,
         subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
@@ -278,6 +286,7 @@ export default function TeacherBookDashboard({ onBack }) {
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
         lesson: newLesson || '',
+        lessons: newLessons,
         subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
@@ -289,7 +298,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
-      setNewLesson('');
+      setNewLessons([]);
       setNewSubject('lv');
       qc.invalidateQueries(['books-all', className]);
     } catch (error) {
@@ -384,6 +393,7 @@ export default function TeacherBookDashboard({ onBack }) {
         book_type: 'html',
         module: newModule || '',
         lesson: newLesson || '',
+        lessons: newLessons,
         subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
@@ -404,6 +414,7 @@ export default function TeacherBookDashboard({ onBack }) {
         book_type: 'html',
         module: newModule || '',
         lesson: newLesson || '',
+        lessons: newLessons,
         subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
@@ -415,7 +426,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
-      setNewLesson('');
+      setNewLessons([]);
       setNewSubject('lv');
       setHtmlPages(null);
       qc.invalidateQueries(['books-all', className]);
@@ -456,6 +467,8 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: book.pdf_page_count || 1,
         book_type: book.book_type || 'pdf',
         module: book.module || '',
+        subject: book.subject || 'lv',
+        ...lessonTagUpdate(bookLessonTags(book)),
         recording_pages: [],
         source_assignment_id: book.id,
       });
@@ -670,12 +683,7 @@ export default function TeacherBookDashboard({ onBack }) {
                 <option value="">No module</option>
                 {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
-              <select value={newLesson} onChange={e => setNewLesson(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
-                style={{ background: '#042f2e' }}>
-                <option value="">No lesson</option>
-                {LESSONS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
+              <LessonChecklist value={newLessons} onSave={lessons => setNewLessons(lessonTagUpdate(lessons).lessons)} label="Lessons for new book" />
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -754,14 +762,9 @@ export default function TeacherBookDashboard({ onBack }) {
                     <option value="">No module</option>
                     {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
-                  <select
-                    value={b.lesson || ''}
-                    onChange={e => updateBook.mutate({ id: b.id, data: { lesson: e.target.value } })}
-                    className="px-2 py-1 rounded-lg text-xs font-bold text-white border border-teal-700"
-                    style={{ background: '#042f2e' }}>
-                    <option value="">No lesson</option>
-                    {LESSONS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
-                  </select>
+                  <LessonChecklist value={bookLessonTags(b)} disabled={updateBook.isPending}
+                    label={`Lessons for ${b.title}`}
+                    onSave={lessons => updateBook.mutateAsync({ id: b.id, book: b, data: lessonTagUpdate(lessons) })} />
                   <button
                     title={
                       getBookClasses(b).includes(

@@ -60,6 +60,12 @@
       "description": "Module folder e.g. M1, M2 \u2026 M9",
       "default": ""
     },
+    "lessons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Optional multiple lesson tags within this module. Kept in sync with the linked permanent catalog."
+    },
     "lesson": {
       "type": "string",
       "default": "",

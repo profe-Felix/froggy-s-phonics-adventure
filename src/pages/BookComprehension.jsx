@@ -8,6 +8,7 @@ import MarkEditor from '@/components/book/MarkEditor';
 import ComparisonReader from '@/components/book/ComparisonReader';
 import { bookPageCount, resolveQuestionTarget, questionTargetFields, questionLabel } from '@/lib/book/comprehension.mjs';
 import { entityItems, selectComprehension } from '@/lib/book/curriculum.mjs';
+import { loadBookCatalog } from '@/lib/book/catalog';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
@@ -389,9 +390,7 @@ export default function BookComprehension() {
   // BookCatalog books for this module
   const { data: allCatalog = [], isLoading: catalogLoading, error: catalogError } = useQuery({
     queryKey: ['book-catalog', 'curricula'],
-    queryFn: async () => {
-      return entityItems(await base44.entities.BookCatalog.list({ sort: 'title', limit: 1000 }));
-    },
+    queryFn: loadBookCatalog,
   });
 
   // LessonBooks association for this lesson

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Presentation, BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 import { entityItems, selectComprehension } from '@/lib/book/curriculum.mjs';
+import { loadBookCatalog } from '@/lib/book/catalog';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
@@ -48,9 +49,7 @@ export default function ComparisonLauncher({ onPresent }) {
 
   const { data: allCatalog = [], isLoading: catalogLoading, error: catalogError } = useQuery({
     queryKey: ['book-catalog', 'curricula'],
-    queryFn: async () => {
-      return entityItems(await base44.entities.BookCatalog.list({ sort: 'title', limit: 1000 }));
-    },
+    queryFn: loadBookCatalog,
   });
 
   const { data: associations = [], isLoading: linksLoading, error: linksError } = useQuery({
