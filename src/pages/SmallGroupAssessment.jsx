@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { assessmentItemStyle, retryable, retryDelay, wait } from '@/lib/classroomSync';
+import { openAssessmentDisplay } from '@/lib/assessmentDisplay';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
@@ -278,6 +279,16 @@ export default function SmallGroupAssessment() {
   const [broadcastError, setBroadcastError] = useState('');
   const [displaySending, setDisplaySending] = useState(false);
   const displayBusyRef = useRef(false);
+  const liveDisplayRef = useRef(null);
+  useEffect(() => {
+    if (!session?.id) return;
+    const display = openAssessmentDisplay(session.id, 'teacher');
+    liveDisplayRef.current = display;
+    return () => {
+      if (liveDisplayRef.current === display) liveDisplayRef.current = null;
+      display.close();
+    };
+  }, [session?.id]);
 
   const broadcastNow = useCallback((state) => {
     if (!session?.id) return Promise.resolve(false);
@@ -305,6 +316,9 @@ export default function SmallGroupAssessment() {
       ...state,
       sync_seq: channel.sequence,
     };
+    // Do not make the student's next letter wait for the database write.
+    // The existing ordered save, retries and score bookkeeping stay intact.
+    liveDisplayRef.current?.publish(channel.pending);
 
     if (channel.running) return channel.running;
 

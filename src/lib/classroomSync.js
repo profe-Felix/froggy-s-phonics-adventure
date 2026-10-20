@@ -49,6 +49,8 @@ export function mergeAssessment(previous, incoming) {
   if (!incoming?.id) return previous;
 
   const next = { ...previous, ...incoming };
+  // Ending a session is terminal; late recovery/live packets must not reopen it.
+  if (previous?.status === 'completed') next.status = 'completed';
 
   if (incoming.broadcast_state !== undefined) {
     const oldSeq = Number(previous?.broadcast_state?.sync_seq) || 0;

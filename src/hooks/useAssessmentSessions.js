@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { mergeAssessment, requestWithRetry, retryDelay } from '@/lib/classroomSync';
+import { openAssessmentDisplay } from '@/lib/assessmentDisplay';
 
 const DISPLAY_FIELDS = ['status', 'broadcast_state'];
 
@@ -30,6 +31,7 @@ export function useAssessmentSessions({
     const versions = new Map();
     const fetching = new Set();
     const lastDisplay = new Map();
+    const displays = new Map();
 
     const publish = () => {
       if (alive) setSessions([...records.values()]);
@@ -39,15 +41,37 @@ export function useAssessmentSessions({
       if (!data?.id || (sessionId && data.id !== sessionId)) return;
 
       // Keep display metadata only; results never need to render on an iPad.
-      const merged = mergeAssessment(records.get(data.id), data);
+      const previous = records.get(data.id);
+      const merged = mergeAssessment(previous, data);
+      const changed = !previous || previous.status !== merged.status
+        || JSON.stringify(previous.broadcast_state) !== JSON.stringify(merged.broadcast_state);
 
       records.set(data.id, {
         id: data.id,
         status: merged.status || 'active',
         broadcast_state: merged.broadcast_state || {},
       });
+      const broadcast = merged.broadcast_state || {};
+      const myTurn = broadcast.show_item
+        && Number(broadcast.student_number) === Number(studentNumber)
+        && String(broadcast.class_name || '').toLowerCase() === className.toLowerCase();
+      if (merged.status === 'active' && (sessionId || myTurn) && !displays.has(data.id)) {
+        displays.set(data.id, openAssessmentDisplay(data.id, 'student', state => {
+          if (!alive) return;
+          versions.set(data.id, (versions.get(data.id) || 0) + 1);
+          apply({ id: data.id, broadcast_state: state });
+          lastDisplay.set(data.id, Date.now());
+          setLoading(false);
+          setSyncMessage('Connected — live display');
+        }));
+      }
+      if (merged.status === 'completed') {
+        displays.get(data.id)?.close();
+        displays.delete(data.id);
+      }
 
-      publish();
+      // Results-only entity events must not rerender the whole student app.
+      if (changed) publish();
     };
 
     const failed = (error) => {
@@ -145,12 +169,15 @@ export function useAssessmentSessions({
       versions.set(id, (versions.get(id) || 0) + 1);
 
       if (event.type === 'delete') {
+        displays.get(id)?.close();
+        displays.delete(id);
         records.delete(id);
         publish();
         return;
       }
 
       const data = event.data || {};
+      const previousSequence = Number(records.get(id)?.broadcast_state?.sync_seq) || 0;
 
       if (data.broadcast_state !== undefined || data.status !== undefined) {
         apply({ ...data, id });
@@ -158,7 +185,9 @@ export function useAssessmentSessions({
       }
 
       if (data.broadcast_state !== undefined) {
-        lastDisplay.set(id, Date.now());
+        if ((Number(data.broadcast_state?.sync_seq) || 0) > previousSequence) {
+          lastDisplay.set(id, Date.now());
+        }
         setSyncMessage('Connected — live update');
       } else if (data.status === undefined && data.results === undefined) {
         void refresh(id);
@@ -228,6 +257,7 @@ export function useAssessmentSessions({
     return () => {
       alive = false;
       unsubscribe?.();
+      for (const display of displays.values()) display.close();
       clearTimeout(recoveryTimer);
       clearTimeout(discoveryTimer);
       document.removeEventListener('visibilitychange', visible);
