@@ -198,7 +198,7 @@ export default function NotebookDashboardPreview() {
                     selected.scope === "shared" ? "Shared assignment" : `Class assignment · ${className}`}
                   <span className="ml-2 text-xs font-normal text-slate-500">Viewing {className} students only</span>
                 </p>
-                {selected.aliases.length > 1 && <details key={`${className}:${selected.id}`}
+                {selected.aliases.length > 1 && <details key={`copies:${className}:${selected.id}`}
                   className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
                   <summary className="cursor-pointer font-medium">Advanced: older assignment copies</summary>
                   <label className="mt-3 block">
@@ -220,7 +220,7 @@ export default function NotebookDashboardPreview() {
                   </span>
                 </details>}
                 <p className="text-xs text-slate-500">If a page shows no ink, there is no new-notebook work on that page. Work done in the old notebook remains in the original dashboard.</p>
-                <NotebookDashboardMonitor key={`${className}:${context.assignmentId}`} context={context}
+                <NotebookDashboardMonitor key={`monitor:${className}:${context.assignmentId}`} context={context}
                   onPageChange={next => setFilters({ page: String(next) })} />
               </section>
             )}

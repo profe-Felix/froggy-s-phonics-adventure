@@ -176,3 +176,21 @@ test("new preview UI stays isolated from old dashboards and invokes no entity mu
   assert.match(runtime, /type="number"/);
   assert.match(runtime, /NotebookTeacherView state=\{latest\} onSetPage=\{setPage\}/);
 });
+
+test("older-copy sections and monitor mounts have distinct sibling keys across navigation", async () => {
+  const page = await fs.readFile(new URL("../src/pages/NotebookDashboardPreview.jsx", import.meta.url), "utf8");
+  const details = page.match(/<details key=\{`([^`]+)`\}/);
+  const monitor = page.match(/<NotebookDashboardMonitor key=\{`([^`]+)`\}/);
+  assert.ok(details && monitor, "Both stateful siblings need explicit keys");
+  const keyFor = (template, className, assignmentId) => template
+    .replace("${className}", className)
+    .replace("${selected.id}", assignmentId)
+    .replace("${context.assignmentId}", assignmentId);
+  for (const className of ["Felix", "Valero", "Gutierrez"]) {
+    for (const assignmentId of ["shared-original", "class-copy", "science-assessment"]) {
+      assert.notEqual(keyFor(details[1], className, assignmentId), keyFor(monitor[1], className, assignmentId),
+        "Duplicate React sibling keys orphan old Advanced sections during switching");
+    }
+  }
+  assert.equal((page.match(/<details\b/g) || []).length, 1);
+});
