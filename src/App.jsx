@@ -11,6 +11,8 @@ import MathGames from './pages/MathGame';
 import QRGenerator from './pages/QRGenerator';
 import MathDashboard from './pages/MathDashboard';
 import DigitalNotebook from './pages/DigitalNotebook';
+import DigitalNotebook2 from './pages/DigitalNotebook2';
+import LiveLesson2 from './pages/LiveLesson2';
 import SpanishReadingDashboard from './pages/SpanishReadingDashboard';
 import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
 import WordSentenceBuilder from './pages/WordSentenceBuilder';
@@ -148,6 +150,8 @@ const AuthenticatedApp = () => {
 
       <Route path="/MathDashboard" element={<MathDashboard />} />
       <Route path="/DigitalNotebook" element={<DigitalNotebook />} />
+      <Route path="/DigitalNotebook2" element={<DigitalNotebook2 />} />
+      <Route path="/LiveLesson2" element={<LiveLesson2 />} />
       <Route path="/SpanishReadingDashboard" element={<SpanishReadingDashboard />} />
       <Route path="/SpellingWritingDashboard" element={<SpellingWritingDashboard />} />
       <Route path="/Lessons" element={<Lessons />} />

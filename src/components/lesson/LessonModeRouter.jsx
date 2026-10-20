@@ -921,7 +921,7 @@ export default function LessonModeRouter({
   const goalDone = done;
 
   function renderMode() {
-    if (['book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','missing_letter','dictation'].includes(step.mode)) {
+    if (['book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','digital_notebook2','missing_letter','dictation'].includes(step.mode)) {
       return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId,liveSession}} onComplete={completeStep}/>;
     }
     switch (step.mode) {

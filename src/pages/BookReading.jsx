@@ -6,6 +6,8 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
+import ShelfSectionTabs from '@/components/book/ShelfSectionTabs';
+import { groupBooksBySection, resolveSection } from '@/components/book/bookShelfSections';
 import { QRCodeSVG } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
@@ -60,6 +62,7 @@ function StudentLogin({ onEnter, preselectedClass, classNames }) {
 function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, directBookTitle, directBookId, initialPage, suppressAutoSelect }) {
   // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
+  const [selectedSection, setSelectedSection] = useState('df');
 
   // Load active books using explicit class access and language.
   const { data: books = [], isLoading } = useQuery({
@@ -171,8 +174,14 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   };
 
   const accessibleBooks = getAccessibleBooks();
-  const availableModules = ['All', ...Array.from(new Set(accessibleBooks.map(b => b.module).filter(Boolean))).sort()];
-  const filtered = selectedModule === 'All' ? accessibleBooks : accessibleBooks.filter(b => b.module === selectedModule);
+  // Separate DF / LV (and library / unclassified) by the BookAssignment.subject tag.
+  // Queue gating above is unchanged; sections only split what is accessible.
+  const shelfSections = groupBooksBySection(accessibleBooks);
+  const activeSection = resolveSection(shelfSections, selectedSection);
+  const sectionBooks = shelfSections.find(s => s.id === activeSection)?.books || [];
+  const availableModules = ['All', ...Array.from(new Set(sectionBooks.map(b => b.module).filter(Boolean))).sort()];
+  const moduleFilter = availableModules.includes(selectedModule) ? selectedModule : 'All';
+  const filtered = moduleFilter === 'All' ? sectionBooks : sectionBooks.filter(b => b.module === moduleFilter);
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-20">
@@ -192,12 +201,14 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
     <div className="p-4">
       <h2 className="text-xl font-black text-white mb-4">📚 Your Books — Class {className} · #{studentNumber}</h2>
 
+      <ShelfSectionTabs sections={shelfSections} active={activeSection} onSelect={setSelectedSection} />
+
       {/* Module filter */}
       {availableModules.length > 1 && (
         <div className="flex gap-2 flex-wrap mb-4">
           {availableModules.map(m => (
             <button key={m} onClick={() => setSelectedModule(m)}
-              className={`px-4 py-1.5 rounded-full font-bold text-sm transition-all ${selectedModule === m ? 'bg-teal-500 text-white' : 'text-teal-300 border border-teal-700 hover:bg-teal-900'}`}>
+              className={`px-4 py-1.5 rounded-full font-bold text-sm transition-all ${moduleFilter === m ? 'bg-teal-500 text-white' : 'text-teal-300 border border-teal-700 hover:bg-teal-900'}`}>
               {m === 'All' ? '📚 All' : `📁 ${m}`}
             </button>
           ))}

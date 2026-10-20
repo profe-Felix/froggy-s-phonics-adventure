@@ -1,0 +1,15 @@
+{
+  "name": "NativeNotebook2Asset",
+  "type": "object",
+  "properties": {
+    "source_key": {"type":"string"},
+    "source_url": {"type":"string"},
+    "title": {"type":"string"},
+    "page_count": {"type":"integer"},
+    "pages": {"type":"object","additionalProperties":true},
+    "status": {"type":"string","enum":["preparing","ready"]},
+    "updated_at": {"type":"number"}
+  },
+  "required":["source_key","source_url","page_count","pages","status"],
+  "rls":{"create":null,"read":null,"update":null,"delete":null}
+}

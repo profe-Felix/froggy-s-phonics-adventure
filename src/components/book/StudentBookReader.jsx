@@ -18,6 +18,10 @@ import ReaderQuestions from '@/components/book/ReaderQuestions';
 import PageMarkOverlay from '@/components/book/PageMarkOverlay';
 import BookPairingControl from '@/components/book/BookPairingControl';
 import useBookPagePairing from '@/components/book/useBookPagePairing';
+import useTeacherInk from '@/components/book/useTeacherInk';
+import TeacherInkLayer from '@/components/book/TeacherInkLayer';
+import TeacherInkToolbar from '@/components/book/TeacherInkToolbar';
+import { inkPageKey } from '@/components/book/teacherInk';
 import { bookSpreadStart, bookSpreadPages, previousBookPage } from '@/components/book/bookSpreads';
 
 // localStorage key remembering the last book + page this student opened, so a
@@ -198,7 +202,8 @@ export default function StudentBookReader({
     prevClassRef.current = className;
   }, [className]);
 
-  const laserTracker = useLaserTracker({ containerRef, enabled: true });
+  const ink = useTeacherInk();
+  const laserTracker = useLaserTracker({ containerRef, enabled: !(teacherMode && ink.tool) });
 
   const {
     state: recState,
@@ -615,10 +620,16 @@ export default function StudentBookReader({
   useEffect(() => {
     if (panelQIdx > pageQuestions.length - 1) setPanelQIdx(0);
   }, [currentPage, panelQIdx, pageQuestions.length]);
-  const markFor = (pageNum) =>
-    teacherMode && activeQ?.mark?.shape && activeQ.page_number === pageNum && (!activeQ.mark.book_id || activeQ.mark.book_id === book.catalog_book_id)
-      ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
-      : null;
+  // Teacher-only page ink (local to this device; never saved to student data).
+  const inkPageKeys = (panelMode ? [currentPage] : visiblePageNumbers).map((p) => inkPageKey(book, p));
+  const markFor = (pageNum) => (
+    <>
+      {teacherMode && activeQ?.mark?.shape && activeQ.page_number === pageNum && (!activeQ.mark.book_id || activeQ.mark.book_id === book.catalog_book_id)
+        ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
+        : null}
+      {teacherMode && <TeacherInkLayer ink={ink} pageKey={inkPageKey(book, pageNum)} />}
+    </>
+  );
 
   const renderPage = (pageNum, align = 'center') => (
     <BookPageRenderer
@@ -887,6 +898,7 @@ export default function StudentBookReader({
             ))}
           </div>
         )}
+        {teacherMode && <TeacherInkToolbar ink={ink} pageKeys={inkPageKeys} />}
         <audio ref={audioRef} src={spreadRecording?.audio_url || ''} style={{ display: 'none' }}
           onEnded={() => setShowReplay(false)} />
       </div>

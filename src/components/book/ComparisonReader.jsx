@@ -1,6 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import BookPageRenderer from '@/components/book/BookPageRenderer';
+import useTeacherInk from '@/components/book/useTeacherInk';
+import TeacherInkLayer from '@/components/book/TeacherInkLayer';
+import TeacherInkToolbar from '@/components/book/TeacherInkToolbar';
+import { inkPageKey } from '@/components/book/teacherInk';
 import BackButton from '@/components/ui/BackButton';
 import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
@@ -22,6 +26,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey, 
   const [showAnchor, setShowAnchor] = useState(true);
   const [activeQ, setActiveQ] = useState(0);
   const [barOpen, setBarOpen] = useState(true);
+  const ink = useTeacherInk();
 
   const { data: knownWords } = useKnownSightWords(lessonKey, className);
   const safeKnownWords = knownWords instanceof Set ? knownWords : new Set();
@@ -118,6 +123,10 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey, 
   const refBook = extraTarget && extraTarget.bookIndex != null && extraTarget.bookIndex >= 0 && extraTarget.pageNumber >= 1
     ? safeBooks[extraTarget.bookIndex] : null;
   const refPage = refBook ? extraTarget.pageNumber : 0;
+
+  // Teacher-only page ink — this reader is only opened from TeacherView.
+  const inkBook = !(hasAnchor && showAnchor) && (isQuestion ? (!hasAnchor || !showAnchor) && refBook : currentBook);
+  const inkKey = inkBook ? inkPageKey(inkBook, isQuestion ? refPage : page.pageNumber) : null;
 
   return (
     <div
@@ -217,6 +226,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey, 
           ) : refBook ? (
             <div className="relative w-full h-full">
               {renderBookPage(refBook, refPage)}
+              <TeacherInkLayer ink={ink} pageKey={inkPageKey(refBook, refPage)} />
               <span className="absolute bottom-2 left-2 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-black text-white">
                 {safeBooks.length > 1 ? `${bookLetter(extraTarget.bookIndex)} · ` : ''}p {refPage}
               </span>
@@ -232,6 +242,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey, 
         ) : currentBook ? (
           <div className="relative w-full h-full">
             {renderBookPage(currentBook, page.pageNumber)}
+            <TeacherInkLayer ink={ink} pageKey={inkPageKey(currentBook, page.pageNumber)} />
             {barOpen && shownQuestion?.mark?.shape && (
               <PageMarkOverlay mark={shownQuestion.mark} />
             )}
@@ -246,6 +257,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey, 
             )}
           </div>
         ) : null}
+        {inkKey && <TeacherInkToolbar ink={ink} pageKeys={[inkKey]} />}
       </div>
 
       {/* Question bar - extra slides, or book pages that have questions */}

@@ -150,7 +150,10 @@
               "soundwall",
               "google_slides",
               "word_tracing",
-              "missing_letter"
+              "missing_letter",
+              "digital_notebook",
+              "digital_notebook2",
+              "dictation"
             ],
             "description": "Which existing activity this step launches"
           },

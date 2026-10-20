@@ -6,6 +6,8 @@ import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
 import BookPageThumbnail from '@/components/book/BookPageThumbnail';
+import ShelfSectionTabs from '@/components/book/ShelfSectionTabs';
+import { groupBooksBySection, resolveSection } from '@/components/book/bookShelfSections';
 
 // Teacher bookshelf: same class-filtered book list the student sees, but
 // without per-student queue gating (the teacher can open any class book) and
@@ -13,6 +15,7 @@ import BookPageThumbnail from '@/components/book/BookPageThumbnail';
 // teacher reader (with comprehension questions).
 export default function TeacherBookShelf({ className, onSelectBook }) {
   const [selectedModule, setSelectedModule] = useState('All');
+  const [selectedSection, setSelectedSection] = useState('df');
   const { toast } = useToast();
 
   const copyBookLink = (e, book) => {
@@ -58,8 +61,13 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
     refetchInterval: 10000,
   });
 
-  const modules = ['All', ...Array.from(new Set(books.map((b) => b.module).filter(Boolean))).sort()];
-  const filtered = selectedModule === 'All' ? books : books.filter((b) => b.module === selectedModule);
+  // Separate DF / LV (and library / unclassified) by the BookAssignment.subject tag.
+  const sections = groupBooksBySection(books);
+  const activeSection = resolveSection(sections, selectedSection);
+  const sectionBooks = sections.find((s) => s.id === activeSection)?.books || [];
+  const modules = ['All', ...Array.from(new Set(sectionBooks.map((b) => b.module).filter(Boolean))).sort()];
+  const moduleFilter = modules.includes(selectedModule) ? selectedModule : 'All';
+  const filtered = moduleFilter === 'All' ? sectionBooks : sectionBooks.filter((b) => b.module === moduleFilter);
 
   if (isLoading) {
     return (
@@ -82,6 +90,7 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
   return (
     <div className="h-full overflow-y-auto p-4" style={{ background: '#042f2e' }}>
       <h2 className="mb-4 text-xl font-black text-white">📚 Class {className} — Books</h2>
+      <ShelfSectionTabs sections={sections} active={activeSection} onSelect={setSelectedSection} />
       {modules.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {modules.map((m) => (
@@ -89,7 +98,7 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
               key={m}
               onClick={() => setSelectedModule(m)}
               className={`rounded-full px-4 py-1.5 text-sm font-bold transition ${
-                selectedModule === m
+                moduleFilter === m
                   ? 'bg-teal-500 text-white'
                   : 'border border-teal-700 text-teal-300 hover:bg-teal-900'
               }`}

@@ -10,6 +10,7 @@ import VideoStep from '@/components/lesson/modes/VideoStep';
 import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
 import DigitalNotebookStep from '@/components/lesson/modes/DigitalNotebookStep';
+import DigitalNotebook2Step from '@/components/lesson/modes/DigitalNotebook2Step';
 import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
 import DictationStep from '@/components/lesson/modes/DictationStep';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
@@ -90,6 +91,10 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'video': return <VideoStep onComplete={onComplete} videoUrl={config.videoUrl} title={step.title}/>;
     case 'soundwall': return <SoundWallStep onComplete={onComplete} stepConfig={{...config,curriculumKey:config.curriculumKey||''}}/>;
     case 'google_slides': return <GoogleSlidesStep onComplete={onComplete} stepConfig={config} title={step.title}/>;
+    case 'digital_notebook2':
+      return <DigitalNotebook2Step stepConfig={config} onComplete={onComplete} registerSave={registerActivitySave}
+        studentNumber={selectedStudent?.number || studentData?.student_number || studentData?.number || studentNumber}
+        className={selectedStudent?.class_name || studentData?.class_name || className} />;
     case 'digital_notebook': {
       const notebookStep = <DigitalNotebookStep onComplete={onComplete} registerSave={registerActivitySave} stepConfig={config} studentNumber={selectedStudent?.number||studentData?.number} className={selectedStudent?.class_name||studentData?.class_name}/>;
       const lessonCtx = lessonNotebookContext({ liveSession, stepIndex, step, selectedStudent, studentData });

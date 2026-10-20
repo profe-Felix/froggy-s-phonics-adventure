@@ -1303,7 +1303,13 @@ export default function LiveLesson() {
               : 'STUDENTS: RELEASED'}
         </div>
 
-        {currentStep?.mode === 'digital_notebook' ? (
+        {currentStep?.mode === 'digital_notebook2' ? (
+          <div className="w-full h-full min-h-[65vh]">
+            <p className="text-xs text-indigo-100 px-3 py-2">Base44-only test controls are separate. Start or end the V2 notebook test here; the regular notebook is unchanged.</p>
+            <iframe title="Base44-only notebook teacher controls" className="w-full h-[75vh] border-0"
+              src={`/LiveLesson2?${new URLSearchParams({ class: session.class_name || '', assignment: currentStep.config?.assignmentId || '', page: String(currentStep.config?.pageStart || 1) })}`} />
+          </div>
+        ) : currentStep?.mode === 'digital_notebook' ? (
           <>
             <NotebookLinkButton
               url={liveNotebookLink(window.location.origin, {
