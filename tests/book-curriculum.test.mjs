@@ -51,3 +51,14 @@ test("API envelopes and arrays are accepted, but malformed data fails explicitly
   assert.deepEqual(entityItems([]), []);
   assert.throws(() => entityItems({}), /could not be read/);
 });
+
+test("library readers keep their historical questions without being forced into DF or LV", () => {
+  const library = [{ id: "library", subject: "library", pdf_page_count: 5 }];
+  const questions = [{ id: "q", page_number: 1, question_text: "Library question" }];
+  const data = selectComprehension({
+    subject: null, catalog: library, questions,
+    associations: [{ book_ids: ["library"] }],
+  });
+  assert.deepEqual(data.questions, questions);
+  assert.deepEqual(data.books, library);
+});

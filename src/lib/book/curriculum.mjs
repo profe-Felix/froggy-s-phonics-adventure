@@ -17,6 +17,10 @@ export function selectComprehension({ subject, associations = [], questions = []
   const legacy = associations.find(a => !a.subject);
   const explicit = associations.find(a => a.subject === subject);
   const legacyBooks = (legacy?.book_ids || []).map(id => byId.get(id)).filter(Boolean);
+  // Library/unclassified readers retain their existing non-curriculum behavior.
+  if (!subject) return {
+    questions: [...questions], books: legacyBooks, lessonBooks: legacy || null, catalog,
+  };
   const books = explicit
     ? (explicit.book_ids || []).map(id => byId.get(id)).filter(b => b && bookCurriculum(b) === subject)
     : legacyBooks.filter(b => bookCurriculum(b) === subject);
