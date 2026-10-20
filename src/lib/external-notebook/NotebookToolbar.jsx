@@ -408,7 +408,9 @@ function ColorPopup({
         ))}
       </div>
     </div>,
-    document.body
+    // Keep the palette in its native lesson overlay's stacking/focus context.
+    // Other notebook hosts retain their existing body portal.
+    anchor.current?.closest("[data-notebook-palette-root]") || document.body
   );
 }
 

@@ -63,7 +63,7 @@ export async function mountNotebookDashboard({ element, role, context, session, 
       if (disposed || !controller) return;
       root.render(<Boundary>
         <DashboardPageInput state={latest} onSetPage={setPage} />
-        <NotebookTeacherView state={latest} onSetPage={setPage}
+        <NotebookTeacherView state={latest} onSetPage={setPage} formation
           onRefresh={() => controller.refresh()} onRetryImage={() => controller.retryImage()}
           onRetryConnection={() => controller.retryConnection()} onLoadHistory={n => controller.loadHistory(n)} />
       </Boundary>);

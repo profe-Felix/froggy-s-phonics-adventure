@@ -108,7 +108,7 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   };
   const a = ink.actions;
   return (
-    <div data-notebook-surface data-testid="surface-native-student">
+    <div data-notebook-surface data-notebook-palette-root data-testid="surface-native-student">
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 4px" }}>
         <Pill tone="v2" data-testid="text-engine">Version {variant} notebook (Base44-only · {variant === 3 ? "individual PDF page" : "images"})</Pill>
         {inSession && <Pill tone="ok" data-testid="status-live">Live lesson{following ? " · following teacher" : ""}</Pill>}

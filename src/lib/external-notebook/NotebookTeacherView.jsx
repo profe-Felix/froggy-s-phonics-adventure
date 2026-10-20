@@ -1,6 +1,8 @@
 // Teacher monitoring view: read-only thumbnails, on-demand scrub, enlarged replay.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { buildReplayTimeline, inkPath, replayFrame } from "./ink-model";
+import { buildFormationTimeline } from "@/lib/notebook2/formationReplay";
+import FormationControls from "@/components/notebook2/FormationControls";
 import "./teacher-view.css";
 
 const W = 1000;
@@ -38,7 +40,7 @@ function PageInk({ workbook, imageUrl, strokes, label }) {
   );
 }
 
-function useHistory(onLoad, studentNumber, armed, revision) {
+function useHistory(onLoad, studentNumber, armed, revision, formation = false) {
   const [st, setSt] = useState({ events: null, loading: false, error: "" });
   const [nonce, setNonce] = useState(0);
   const loadRef = useRef(onLoad); loadRef.current = onLoad;
@@ -51,15 +53,15 @@ function useHistory(onLoad, studentNumber, armed, revision) {
       error => { if (live) setSt(p => ({ ...p, loading: false, error: error?.message || "History failed to load." })); });
     return () => { live = false; };
   }, [armed, studentNumber, revision, nonce]);
-  const timeline = useMemo(() => st.events ? buildReplayTimeline(st.events) : [], [st.events]);
+  const timeline = useMemo(() => st.events ? (formation ? buildFormationTimeline(st.events) : buildReplayTimeline(st.events)) : [], [st.events, formation]);
   return { ...st, timeline, total: timeline.at(-1)?.end ?? 0, retry: () => setNonce(n => n + 1) };
 }
 
-function Tile({ workbook, imageUrl, notebook, online, hot, onLoadHistory, onOpen, page }) {
+function Tile({ workbook, imageUrl, notebook, online, hot, onLoadHistory, onOpen, page, formation }) {
   const n = notebook.studentNumber;
   const [armed, setArmed] = useState(false);
   const [time, setTime] = useState(null);
-  const hist = useHistory(onLoadHistory, n, armed, notebook.revision);
+  const hist = useHistory(onLoadHistory, n, armed, notebook.revision, formation);
   useEffect(() => { setArmed(false); setTime(null); }, [page]);
   const frame = useMemo(() => time !== null && hist.timeline.length ? replayFrame(hist.timeline, time) : null, [hist.timeline, time]);
   const scrubbing = time !== null;
@@ -88,12 +90,12 @@ function Tile({ workbook, imageUrl, notebook, online, hot, onLoadHistory, onOpen
   );
 }
 
-function Replay({ workbook, imageUrl, notebook, onLoadHistory, onClose }) {
+function Replay({ workbook, imageUrl, notebook, onLoadHistory, onClose, formation }) {
   const n = notebook.studentNumber;
-  const hist = useHistory(onLoadHistory, n, true, notebook.revision);
+  const hist = useHistory(onLoadHistory, n, true, notebook.revision, formation);
   const [time, setTime] = useState(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(2);
+  const [speed, setSpeed] = useState(formation ? 0.5 : 2);
   const t = time ?? hist.total;
   useEffect(() => {
     if (!playing) return;
@@ -139,11 +141,13 @@ function Replay({ workbook, imageUrl, notebook, onLoadHistory, onClose }) {
               onChange={e => { setPlaying(false); setTime(Number(e.target.value)); }} />
             <span>{hist.loading ? "Loading" : `${fmt(t)} / ${fmt(hist.total)}`}</span>
             <select className="nbt-btn" value={speed} onChange={e => setSpeed(Number(e.target.value))} aria-label="Speed">
-              {[1, 2, 4, 8].map(s => <option key={s} value={s}>{s}x</option>)}
+              {(formation ? [0.25, 0.5, 1, 2] : [1, 2, 4, 8]).map(s => <option key={s} value={s}>{s}x</option>)}
             </select>
             <button type="button" className="nbt-btn" disabled={time === null} onClick={() => { setPlaying(false); setTime(null); }}>Live</button>
           </div>
         )}
+        {formation && <FormationControls timeline={hist.timeline} time={t}
+          onSeek={value => { setPlaying(false); setTime(value); }} />}
         {!hist.loading && !hist.error && !hist.timeline.length && <div className="nbt-note">No saved handwriting on this page yet.</div>}
       </div>
     </div>
@@ -152,7 +156,7 @@ function Replay({ workbook, imageUrl, notebook, onLoadHistory, onClose }) {
 
 const STATUS = { live: "Live", connecting: "Connecting", reconnecting: "Reconnecting", offline: "Offline", expired: "Authorization expired" };
 
-export function NotebookTeacherView({ state, onSetPage, onRefresh, onRetryImage, onRetryConnection, onLoadHistory }) {
+export function NotebookTeacherView({ state, onSetPage, onRefresh, onRetryImage, onRetryConnection, onLoadHistory, formation = false }) {
   const [cols, setCols] = useState(5);
   const [open, setOpen] = useState(null);
   const { workbook, overview, image, classroom } = state;
@@ -191,10 +195,10 @@ export function NotebookTeacherView({ state, onSetPage, onRefresh, onRetryImage,
             <Tile key={nb.studentNumber} workbook={workbook} imageUrl={image.url} notebook={nb} page={state.page}
               online={(state.presence[nb.studentNumber] || 0) > 0}
               hot={now - (state.activity[nb.studentNumber] || 0) < 8000}
-              onLoadHistory={onLoadHistory} onOpen={setOpen} />))}
+              onLoadHistory={onLoadHistory} onOpen={setOpen} formation={formation} />))}
         </div>)}
       {openNb && <Replay key={`${state.page}:${openNb.studentNumber}`} workbook={workbook} imageUrl={image.url}
-        notebook={openNb} onLoadHistory={onLoadHistory} onClose={() => setOpen(null)} />}
+        notebook={openNb} onLoadHistory={onLoadHistory} onClose={() => setOpen(null)} formation={formation} />}
     </div>
   );
 }
