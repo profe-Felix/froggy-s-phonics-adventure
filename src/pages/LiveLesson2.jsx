@@ -62,7 +62,8 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
     if (!L?.active || L.ended || restoredId.current === L.id) return;
     restoredId.current = L.id;
     setPage(L.page); setFollowing(L.follow !== false); setCanWrite(L.canWrite !== false);
-    setWhole(false); setChecked(L.students || []);
+    setWhole(seats.length > 0 && L.students?.length === seats.length && seats.every(s => L.students.includes(s.student_number)));
+    setChecked(L.students || []);
     setAnnounce(a => a.sessionId === L.id ? a : { state: "unknown", error: "", sessionId: L.id });
   }, [L]);
 
@@ -104,7 +105,7 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
     if (!running) return;
     const ok = await doControl(label, patch);
     if (!ok) { setFollowing(L.follow !== false); setCanWrite(L.canWrite !== false); }
-    if (ok && patch.students && announce.state !== "unknown") await publish(ok.id, ok.students || patch.students, ok.page || page);
+    if (ok && patch.students) await publish(ok.id, ok.students || patch.students, ok.page || page);
   };
   const end = async (retryOnly) => {
     const sessionId = running ? L.id : endState?.sessionId;
