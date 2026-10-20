@@ -49,21 +49,53 @@ test("all classes default to the original shared assignment, not empty local cop
     { ...original, id: "6aa812099d65ee8c67e01103", class_name: "Gutierrez" },
     { ...original, id: "69f6c2d1326aee0fc6e2658e", class_name: "Valero" }];
   for (const name of ["Felix", "Valero", "Gutierrez"]) {
-    const catalog = buildPreviewCatalog(copies, name);
+    const catalog = buildPreviewCatalog(copies, name, { sharedAssignmentIds: [original.id] });
     assert.equal(catalog.length, 1);
     assert.equal(catalog[0].id, original.id);
     assert.equal(catalog[0].aliases.length, 3);
   }
 });
 
-test("class switches retain exact shared assignment and page, including explicitly selected copies", () => {
+test("class switches retain the verified shared assignment and page, not empty historical copies", () => {
   const copy = { ...book, id: "b", class_name: "Valero" };
   for (const assignment of [book, copy]) {
     for (const name of ["Felix", "Valero", "Gutierrez"]) {
-      assert.deepEqual(previewClassSelection([book, copy], assignment, name, 61),
-        { class: name, assignment: assignment.id, page: "61" });
+      assert.deepEqual(previewClassSelection([book, copy], assignment, name, 61, { sharedAssignmentIds: [book.id] }),
+        { class: name, assignment: book.id, page: "61" });
     }
   }
+});
+
+test("identical separately uploaded Light Energy PDFs form one entry and default to each class's own record", () => {
+  const hash = `sha256:${"a".repeat(64)}`;
+  const rows = ["Felix", "Valero", "Gutierrez"].map((name, i) => ({ ...book,
+    id: `energy-${i}`, title: "Light Energy CFU", class_name: name,
+    library_key: hash, pdf_url: `https://files.example/${name}.pdf`, pdf_page_count: 1 }));
+  for (const [i, name] of ["Felix", "Valero", "Gutierrez"].entries()) {
+    const catalog = buildPreviewCatalog(rows, name);
+    assert.equal(catalog.length, 1);
+    assert.equal(catalog[0].id, rows[i].id);
+    assert.equal(catalog[0].scope, "class");
+    assert.equal(catalog[0].aliases.length, 3);
+    assert.equal(previewClassSelection(rows, rows[0], name, 1).assignment, rows[i].id);
+  }
+});
+
+test("assignments created by Valero remain available in Felix when shared, without inventing a class copy", () => {
+  const science = { ...book, id: "valero-science", class_name: "Valero" };
+  const rows = buildPreviewCatalog([science], "Felix");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].id, science.id);
+  assert.equal(rows[0].scope, "shared");
+  assert.equal(buildPreviewCatalog([{ ...science, shared_across_classes: false }], "Felix").length, 0);
+});
+
+test("same titles with different verified PDF identities are not merged; malformed hashes are not trusted", () => {
+  const a = { ...book, library_key: `sha256:${"a".repeat(64)}` };
+  const b = { ...book, id: "b", library_key: `sha256:${"b".repeat(64)}` };
+  assert.equal(buildPreviewCatalog([a, b], "Felix").length, 2);
+  assert.equal(buildPreviewCatalog([{ ...a, library_key: "not-a-hash" },
+    { ...b, library_key: "not-a-hash", pdf_url: "https://files.example/another.pdf" }], "Felix").length, 2);
 });
 
 test("private equivalents match by title AND PDF, and unavailable assignments never pick a different notebook", () => {
@@ -137,6 +169,9 @@ test("new preview UI stays isolated from old dashboards and invokes no entity mu
   assert.match(monitor, /host\.start\(\)/);
   assert.match(monitor, /page: undefined/);
   assert.match(page, /onPageChange=\{next => setFilters/);
+  assert.match(page, /Advanced: older assignment copies/);
+  assert.match(page, /Shared assignment \(recommended\)/);
+  assert.doesNotMatch(page, /<details[^>]*\bopen[ =>]/);
   assert.match(runtime, /onPageChange\?\.\(page\)/);
   assert.match(runtime, /type="number"/);
   assert.match(runtime, /NotebookTeacherView state=\{latest\} onSetPage=\{setPage\}/);

@@ -14,6 +14,9 @@ const ASSIGNMENT_LIMIT = 500;
 const ROSTER_LIMIT = 100;
 const SEATS = 30;
 const APPROVED = new Set(EXTERNAL_NOTEBOOK_CONFIG.catalogClasses || []);
+// This existing shared launch identity is verified to contain current work in
+// every enabled class. Other historical copies retain their class-specific IDs.
+const SELECTION = { sharedAssignmentIds: [EXTERNAL_NOTEBOOK_CONFIG.assignmentId] };
 
 const card = "rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm";
 const btn = "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50";
@@ -69,7 +72,7 @@ export default function NotebookDashboardPreview() {
   const rosterTruncated = roster.length >= ROSTER_LIMIT;
 
   const catalog = useMemo(
-    () => (classApproved && !assignmentsTruncated ? buildPreviewCatalog(assignments, className) : []),
+    () => (classApproved && !assignmentsTruncated ? buildPreviewCatalog(assignments, className, SELECTION) : []),
     [assignments, className, classApproved, assignmentsTruncated],
   );
   const filtered = useMemo(() => {
@@ -124,8 +127,9 @@ export default function NotebookDashboardPreview() {
                       <li key={name}>
                         <button type="button" disabled={!ok} data-testid={`button-class-${name}`}
                           onClick={() => {
+                            if (active) return;
                             setSearch("");
-                            setFilters(previewClassSelection(assignments, rawAssignment, name, context?.page || page || 1));
+                            setFilters(previewClassSelection(assignments, rawAssignment, name, context?.page || page || 1, SELECTION));
                           }}
                           className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${active ? "bg-sky-700 text-white" : ok ? "bg-slate-50 text-slate-700 hover:bg-sky-100" : "cursor-not-allowed bg-slate-50 text-slate-400"}`}>
                           <span className="font-medium">{name}</span>
@@ -189,17 +193,32 @@ export default function NotebookDashboardPreview() {
 
             {ready && (
               <section className="space-y-2" data-testid="section-monitor">
-                {selected.aliases.length > 1 && <label className="block rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  Saved assignment copy
-                  <select className="ml-3 rounded-lg border border-slate-300 px-2 py-1"
-                    value={rawAssignment.id} onChange={e => setFilters({ assignment: e.target.value, page: "" })}>
-                    {selected.aliases.map(id => {
-                      const copy = assignments.find(a => a.id === id);
-                      return <option key={id} value={id}>{copy?.class_name || "Shared"} · {id.slice(-6)}</option>;
-                    })}
-                  </select>
-                  <span className="mt-1 block text-xs text-slate-500">Copies use the same PDF but keep separate student work. Select the copy your students used.</span>
-                </label>}
+                <p className="text-sm font-medium text-slate-700">
+                  {rawAssignment.id !== selected.id ? "Older assignment copy" :
+                    selected.scope === "shared" ? "Shared assignment" : `Class assignment · ${className}`}
+                  <span className="ml-2 text-xs font-normal text-slate-500">Viewing {className} students only</span>
+                </p>
+                {selected.aliases.length > 1 && <details key={`${className}:${selected.id}`}
+                  className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                  <summary className="cursor-pointer font-medium">Advanced: older assignment copies</summary>
+                  <label className="mt-3 block">
+                    Assignment record
+                    <select aria-label="Assignment record" className="ml-3 rounded-lg border border-slate-300 px-2 py-1"
+                      value={rawAssignment.id} onChange={e => setFilters({ assignment: e.target.value })}>
+                      {selected.aliases.map(id => {
+                        const copy = assignments.find(a => a.id === id);
+                        const label = id === selected.id
+                          ? selected.scope === "shared" ? "Shared assignment (recommended)" : `${className} class assignment (recommended)`
+                          : `Older copy created for ${copy?.class_name || "another class"} · ${id.slice(-6)}`;
+                        return <option key={id} value={id}>{label}</option>;
+                      })}
+                    </select>
+                  </label>
+                  <span className="mt-2 block text-xs text-slate-500">
+                    Normally leave the recommended assignment selected. These records use the same PDF but keep separate work.
+                    The class buttons—not the copy's creator—choose whose students you are viewing.
+                  </span>
+                </details>}
                 <p className="text-xs text-slate-500">If a page shows no ink, there is no new-notebook work on that page. Work done in the old notebook remains in the original dashboard.</p>
                 <NotebookDashboardMonitor key={`${className}:${context.assignmentId}`} context={context}
                   onPageChange={next => setFilters({ page: String(next) })} />

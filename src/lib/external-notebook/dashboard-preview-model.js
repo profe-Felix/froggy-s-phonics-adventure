@@ -1,5 +1,13 @@
 // Preview-only selection. Never merge ink identities or rewrite old assignments.
-export function buildPreviewCatalog(records, className) {
+export function previewDocumentKey(assignment) {
+  // A verified content hash groups separate uploads of the same document.
+  // This is library identity only, NEVER student-work or permission identity.
+  const identity = /^sha256:[a-f0-9]{64}$/i.test(assignment.library_key || "")
+    ? assignment.library_key.toLowerCase() : assignment.pdf_url;
+  return JSON.stringify([assignment.title?.trim().toLowerCase(), identity, assignment.pdf_page_count]);
+}
+
+export function buildPreviewCatalog(records, className, { sharedAssignmentIds = [] } = {}) {
   const eligible = records.filter(a => a?.id && a.pdf_url &&
     Number.isSafeInteger(a.pdf_page_count) && a.pdf_page_count > 0 &&
     ["draft", "active", "closed"].includes(a.status) &&
@@ -7,32 +15,36 @@ export function buildPreviewCatalog(records, className) {
   const groups = new Map();
   for (const a of eligible) {
     // Same title alone is not enough to identify the same PDF.
-    const key = JSON.stringify([a.title?.trim().toLowerCase(), a.pdf_url, a.pdf_page_count]);
+    const key = previewDocumentKey(a);
     const group = groups.get(key) || [];
     group.push(a); groups.set(key, group);
   }
   return [...groups.values()].map(group => {
-    // Prefer the original shared assignment, not an unused class copy.
-    // Explicit copy links still select their exact saved work identity.
-    group.sort((a, b) => Number(b.shared_across_classes === true) - Number(a.shared_across_classes === true) ||
+    // Verified shared launch identities retain their work across classes.
+    // Otherwise historical class copies must open THIS class's saved record,
+    // not whichever teacher happened to upload the PDF first.
+    const preferred = a => a.shared_across_classes === true && sharedAssignmentIds.includes(a.id);
+    group.sort((a, b) => Number(preferred(b)) - Number(preferred(a)) ||
+      Number(b.class_name === className) - Number(a.class_name === className) ||
+      Number(b.shared_across_classes === true) - Number(a.shared_across_classes === true) ||
       String(a.created_date || a.id).localeCompare(String(b.created_date || b.id)) ||
       String(a.id).localeCompare(String(b.id)));
     const a = group[0];
     return { id: a.id, title: a.title || "Untitled notebook", pageCount: a.pdf_page_count,
-      status: a.status, aliases: group.map(row => row.id) };
+      status: a.status, scope: preferred(a) || a.class_name !== className ? "shared" : "class",
+      aliases: group.map(row => row.id) };
   }).sort((a, b) => a.title.localeCompare(b.title));
 }
 
-export function previewClassSelection(records, assignment, className, page) {
-  const catalog = buildPreviewCatalog(records, className);
+export function previewClassSelection(records, assignment, className, page, options) {
+  const catalog = buildPreviewCatalog(records, className, options);
   const group = assignment && catalog.find(a => a.aliases.includes(assignment.id));
   const equivalent = group || (assignment && catalog.find(a => {
     const candidate = records.find(row => row.id === a.id);
-    return candidate?.title?.trim().toLowerCase() === assignment.title?.trim().toLowerCase() &&
-      candidate?.pdf_url === assignment.pdf_url && candidate?.pdf_page_count === assignment.pdf_page_count;
+    return candidate && previewDocumentKey(candidate) === previewDocumentKey(assignment);
   }));
   if (!equivalent) return { class: className, assignment: "", page: "" };
-  return { class: className, assignment: group ? assignment.id : equivalent.id,
+  return { class: className, assignment: equivalent.id,
     page: String(Math.max(1, Math.min(Number.isSafeInteger(page) ? page : 1, equivalent.pageCount))) };
 }
 
