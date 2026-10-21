@@ -11,6 +11,24 @@ export function onlyO(content = []) {
   return values.length > 0 && values.every(value => value === 'o');
 }
 
+export function buildFluencyCells(preset, seed) {
+  const content = (preset?.content || []).filter(Boolean);
+  if (!content.length || onlyO(content)) return [];
+  const total = (preset.rows || 5) * (preset.cols || 8);
+  let state = Math.abs(Math.trunc(Number(seed) || 1)) % 2147483647 || 1;
+  const cells = [];
+  while (cells.length < total) {
+    const batch = [...content];
+    for (let i = batch.length - 1; i > 0; i--) {
+      state = state * 16807 % 2147483647;
+      const j = state % (i + 1);
+      [batch[i], batch[j]] = [batch[j], batch[i]];
+    }
+    cells.push(...batch);
+  }
+  return cells.slice(0, total).map(mixedFluencyCase);
+}
+
 export function fluencyArrow(event, current, total) {
   const target = event.target;
   if (!total || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||

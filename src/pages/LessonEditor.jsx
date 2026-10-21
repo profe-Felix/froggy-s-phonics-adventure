@@ -27,6 +27,7 @@ import { useWordBuilderPresets } from '@/hooks/useWordBuilderPresets';
 import WordBuilderPresetEditor from '@/components/wordbuilder/WordBuilderPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import BookVocabularyLibrary from '@/components/lesson/BookVocabularyLibrary';
+import useBookVocabulary from '@/hooks/useBookVocabulary';
 import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -138,6 +139,7 @@ function blankLesson() {
 }
 
 export function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
+  const editableVocabulary = useBookVocabulary(step.config || {});
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
 
   const {
@@ -613,6 +615,24 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
         </div>
       ) : step.mode === 'spanish_reading' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          {step.config?.bookVocabulary === 'words' && <div className="rounded-lg border border-teal-200 bg-teal-50 p-3">
+            <strong className="text-sm">Book words · Spanish Reading</strong>
+            <p className="text-xs text-gray-600">Uses this day’s decodable book words, one at a time. Sentence reading is a separate activity.</p>
+            <label className="my-2 flex items-center gap-2 text-xs font-bold">
+              <input type="checkbox" checked={step.config?.vocabularyOverride === true}
+                onChange={e => update({ config: { ...step.config, vocabularyOverride: e.target.checked,
+                  vocabularyItems: e.target.checked && !step.config?.vocabularyItems?.length
+                    ? editableVocabulary.preset?.content || [] : step.config?.vocabularyItems || [] } })} />
+              Use my edited word list instead of automatic book words
+            </label>
+            {step.config?.vocabularyOverride && <CurriculumListInput multiline items={step.config.vocabularyItems || []}
+              onChange={items => update({ config: { ...step.config, vocabularyItems: items } })} />}
+            <button type="button" className="text-xs font-bold text-indigo-700 underline"
+              onClick={() => update({ config: { ...step.config, bookVocabulary: '', section: 'Palabras' } })}>
+              Switch to a manual list or preset
+            </button>
+          </div>}
+          {step.config?.bookVocabulary !== 'words' && <>
           <label className="text-xs text-gray-600 font-bold">Preset (optional — overrides the list picker)
             <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value, itemsText: '' } })}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
@@ -671,6 +691,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
             substeps={step.config?.substeps || []}
             onChange={(substeps) => update({ config: { ...step.config, substeps } })}
           />
+          </>}
         </div>
       ) : step.mode === 'blending_letters' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">

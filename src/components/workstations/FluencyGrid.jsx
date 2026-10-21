@@ -1,31 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { mixedFluencyCase, onlyO, fluencyArrow } from '@/lib/literacy/fluencyDisplay.mjs';
+import { buildFluencyCells, onlyO, fluencyArrow } from '@/lib/literacy/fluencyDisplay.mjs';
 
 // FluencyGrid — renders the shared table as rows, each with a play triangle.
 // The sweep is driven locally from the shared `sweepStartAt` timestamp so every
 // participant's highlight advances in sync without per-cell writes.
 
-function seededShuffle(arr, seed) {
-  let x = seed;
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    x = (x * 16807) % 2147483647;
-    const j = x % (i + 1);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt, onPlayRow, activeCell, onSelectCell, interactive = true }) {
-  const grid = useMemo(() => {
-    const total = preset.rows * preset.cols;
-    const pool = [];
-    let s = seed;
-    const content = preset.content.filter(Boolean);
-    if (!content.length || onlyO(content)) return [];
-    while (pool.length < total) pool.push(...seededShuffle(content, s++));
-    return pool.slice(0, total).map(mixedFluencyCase);
-  }, [preset, seed]);
+  const grid = useMemo(() => buildFluencyCells(preset, seed), [preset, seed]);
 
   const rows = useMemo(() => {
     const r = [];

@@ -68,7 +68,7 @@ const FluencyInkCanvas = forwardRef(function FluencyInkCanvas({ active }, ref) {
   const onUp = () => { drawing.current = false; };
 
   return (
-    <div ref={wrapRef} className="absolute inset-0">
+    <div ref={wrapRef} className="absolute inset-0" style={{ pointerEvents: active ? 'auto' : 'none' }}>
       <canvas
         ref={canvasRef}
         width={dim.w}

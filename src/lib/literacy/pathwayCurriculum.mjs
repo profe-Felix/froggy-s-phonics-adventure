@@ -17,6 +17,8 @@ export function pathwayPosition(number, dayIndex) {
   return { moduleNumber: Math.floor((n - 1) / 4) + 1, lessonNumber: ((n - 1) % 4) * 5 + dayIndex + 1 };
 }
 export const positionKey = p => `M${p.moduleNumber}.L${p.lessonNumber}`;
+export const hasIntroducedConsonant = position =>
+  getIntroducedGraphemesThrough(position).some(g => /[bcdfghjklmnñpqrstvwxyz]/i.test(g.split('-')[0]));
 export function introductionBooks(books, position) {
   return books.filter(book => {
     const tags = bookLessonTags(book);
@@ -81,9 +83,11 @@ export function generatePathwayDays(number, waypointSnapshot = {}, books = []) {
       steps.push(activity('fluency', 'Fluidez: letras', { curriculumContentType: 'letters', curriculumPosition }));
     if (knownSightWordsAt(position).length)
       steps.push(activity('fluency', 'Fluidez: palabras frecuentes', { curriculumContentType: 'sight_words_all', curriculumPosition }, 'green'));
-    for (const kind of ['syllables', 'words'])
-      steps.push(activity('fluency', kind === 'words' ? 'Lectura de palabras' : 'Lectura de sílabas',
-        { curriculumPosition, bookVocabulary: kind }, 'teal'));
+    if (hasIntroducedConsonant(position)) {
+      steps.push(activity('fluency', 'Fluidez: sílabas', { curriculumPosition, bookVocabulary: 'syllables' }, 'teal'));
+      steps.push(activity('spanish_reading', 'Lectura de palabras',
+        { curriculumPosition, bookVocabulary: 'words', section: 'Palabras' }, 'teal'));
+    }
     if (introductionBooks(books, position).length)
       steps.push(activity('book_reading', 'Lectura DF', { curriculumPosition, autoDfBooks: true, bookCompletion: 'view' }, 'orange'));
     return { day, active: true, title: key, module_number: position.moduleNumber,

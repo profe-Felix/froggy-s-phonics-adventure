@@ -87,8 +87,9 @@ export default function useAudioRecorder() {
       }
       streamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
-      const mr = new MediaRecorder(stream, { mimeType });
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
+        .find(type => MediaRecorder.isTypeSupported(type));
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mr;
 
       mr.ondataavailable = (e) => {
@@ -97,7 +98,7 @@ export default function useAudioRecorder() {
 
       mr.onstop = () => {
         stopTimer();
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || mimeType || chunksRef.current[0]?.type || 'audio/webm' });
         blobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);

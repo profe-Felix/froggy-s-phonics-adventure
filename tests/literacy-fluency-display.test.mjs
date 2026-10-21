@@ -32,7 +32,9 @@ test('keyboard arrows advance and clamp without hijacking editing or modifier ke
 
 test('all fluency grids share keyboard/case logic while student mirrors remain read-only', async () => {
   const grid = await readFile(new URL('../src/components/workstations/FluencyGrid.jsx', import.meta.url), 'utf8');
-  assert.match(grid, /map\(mixedFluencyCase\)/);
+  assert.match(grid, /buildFluencyCells\(preset, seed\)/);
+  const shared = await readFile(new URL('../src/lib/literacy/fluencyDisplay.mjs', import.meta.url), 'utf8');
+  assert.match(shared, /map\(mixedFluencyCase\)/);
   assert.match(grid, /if \(!interactive\) return/);
   assert.match(grid, /window.addEventListener\('keydown', onKey\)/);
   const builder = await readFile(new URL('../src/components/workstations/CurriculumFluencyBuilder.jsx', import.meta.url), 'utf8');

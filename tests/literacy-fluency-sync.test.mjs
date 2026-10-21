@@ -50,7 +50,7 @@ test('sync failures surface and a subsequent retry can persist the newest select
 
 test('the original randomized grid has controlled box selection and read-only student mirroring', async () => {
   const grid = await source('components/workstations/FluencyGrid.jsx');
-  assert.match(grid, /seededShuffle\(content, s\+\+\)/);
+  assert.match(grid, /buildFluencyCells\(preset, seed\)/);
   assert.match(grid, /onSelectCell\(index\)/);
   assert.match(grid, /if \(!interactive\) return/);
   assert.match(grid, /sweepStartAt \? sweepIdx : selected/);

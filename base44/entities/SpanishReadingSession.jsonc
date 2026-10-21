@@ -2,6 +2,11 @@
   "name": "SpanishReadingSession",
   "type": "object",
   "properties": {
+    "fluency_row_data": {
+      "type": "string",
+      "default": "",
+      "description": "Optional JSON fluency row metadata: row, seed, items, strokes_data, duration_ms and recorded_at. An audio attempt is not an automatic accuracy grade."
+    },
     "student_number": {
       "type": "integer"
     },

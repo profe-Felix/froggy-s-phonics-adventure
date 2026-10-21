@@ -14,6 +14,7 @@ import NumberHearingMode from '@/components/game/modes/NumberHearingMode';
 import PhonicsMode from '@/components/game/modes/PhonicsMode';
 import SentencesMode from '@/components/game/modes/SentencesMode';
 import SpanishReadingGame from '@/components/game/spanishReading/SpanishReadingGame';
+import BookVocabularyReadingStep from '@/components/lesson/modes/BookVocabularyReadingStep';
 import StoryBuilder from '@/pages/StoryBuilder';
 import CreandoOracionesMode from '@/components/sentence/CreandoOraciones';
 import LetterRecognitionStep from '@/components/lesson/modes/LetterRecognitionStep';
@@ -1069,6 +1070,8 @@ export default function LessonModeRouter({
         );
 
       case 'spanish_reading':
+        if (step?.config?.bookVocabulary === 'words') return <BookVocabularyReadingStep config={step.config}
+          studentNumber={studentNumber} className={className} onBack={wrappedBack} onComplete={completeStep} />;
         return (
           <SpanishReadingGame
             studentNumber={
