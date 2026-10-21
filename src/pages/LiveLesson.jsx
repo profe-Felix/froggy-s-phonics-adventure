@@ -21,6 +21,7 @@ import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 import { lessonStepPages, liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
 import { lessonNotebookTargets } from '@/lib/liveLessonLifecycle.mjs';
+import { sortLessonChoices, lessonCoverage } from '@/lib/literacy/pathwayCurriculum.mjs';
 
 // Teacher lesson context for external notebook control sync.
 // Built from the saved live session; only called for notebook steps.
@@ -169,6 +170,7 @@ export default function LiveLesson() {
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons-all-live'],
     queryFn: () => base44.entities.Lesson.filter({ active: true }),
+    select: sortLessonChoices,
   });
 
   const { data: sgLessons = [] } = useQuery({
@@ -887,7 +889,7 @@ export default function LiveLesson() {
                       key={lesson.id}
                       value={lesson.id}
                     >
-                      {lesson.title} · {lesson.assignment_type === 'guided'
+                      {lesson.title}{lessonCoverage(lesson) ? ` · ${lessonCoverage(lesson)}` : ''} · {lesson.assignment_type === 'guided'
                         ? 'Guided'
                         : lesson.assignment_type === 'side_quest'
                           ? 'Small group'

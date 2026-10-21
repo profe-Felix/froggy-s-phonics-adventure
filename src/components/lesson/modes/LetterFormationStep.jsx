@@ -15,7 +15,7 @@ export function LetterFormationPair({ letter, waypoints, compact = false }) {
       {[displayLetter(lower, true), lower].map((t, i) => (
         <div key={t + i} className="rounded-3xl bg-white/90 border-2 border-indigo-100 p-3">
           <p className="text-sm font-black text-indigo-800 mb-2">{i === 0 ? 'Mayúscula' : 'Minúscula'} {t}</p>
-          <LetterHelpReplay text={t} waypoints={waypoints} speed={speed} onSpeedChange={setSpeed} compact={compact} />
+          <LetterHelpReplay text={t} waypoints={waypoints} speed={speed} onSpeedChange={setSpeed} compact={compact} autoPlay={false} />
         </div>
       ))}
     </div>

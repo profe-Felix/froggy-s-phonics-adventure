@@ -16,6 +16,41 @@ export function pathwayPosition(number, dayIndex) {
   if (n < 1 || n > 36 || !Number.isInteger(n) || dayIndex < 0 || dayIndex > 4) return null;
   return { moduleNumber: Math.floor((n - 1) / 4) + 1, lessonNumber: ((n - 1) % 4) * 5 + dayIndex + 1 };
 }
+export function sortLessonChoices(lessons) {
+  const rank = lesson => lesson.assignment_type === 'guided' ? 1 : lesson.assignment_type === 'side_quest' ? 2 : 0;
+  const order = lesson => Number(lesson.lesson_number) > 0 ? Number(lesson.lesson_number) : Infinity;
+  return [...lessons].sort((a, b) => rank(a) - rank(b) || order(a) - order(b) ||
+    String(a.title || '').localeCompare(String(b.title || ''), undefined, { numeric: true }) ||
+    String(a.id || '').localeCompare(String(b.id || '')));
+}
+export function lessonCoverage(lesson) {
+  if (lesson.language === 'en') return '';
+  const modules = new Map();
+  for (const day of lesson.daily_lessons || []) {
+    if (day.active === false || !day.steps?.length) continue;
+    const module = Number(day.module_number), first = Number(day.curriculum_lesson_number);
+    const last = Number(day.curriculum_lesson_end || first);
+    if (!Number.isInteger(module) || module < 1 || module > 9 || !Number.isInteger(first) ||
+        first < 1 || first > 20 || !Number.isInteger(last) || last < first || last > 20) continue;
+    if (!modules.has(module)) modules.set(module, new Set());
+    for (let n = first; n <= last; n++) modules.get(module).add(n);
+  }
+  if (!modules.size && !['guided', 'side_quest'].includes(lesson.assignment_type)) {
+    const first = pathwayPosition(lesson.lesson_number, 0), last = pathwayPosition(lesson.lesson_number, 4);
+    return first ? `M${first.moduleNumber}.L${first.lessonNumber}–L${last.lessonNumber}` : '';
+  }
+  const parts = [];
+  for (const [module, values] of [...modules].sort((a, b) => a[0] - b[0])) {
+    const lessons = [...values].sort((a, b) => a - b);
+    for (let i = 0; i < lessons.length; i++) {
+      const first = lessons[i];
+      while (lessons[i + 1] === lessons[i] + 1) i++;
+      const last = lessons[i];
+      parts.push(`M${module}.L${first}${last === first ? '' : `–L${last}`}`);
+    }
+  }
+  return parts.join(' · ');
+}
 export const positionKey = p => `M${p.moduleNumber}.L${p.lessonNumber}`;
 export const hasIntroducedConsonant = position =>
   getIntroducedGraphemesThrough(position).some(g => /[bcdfghjklmnñpqrstvwxyz]/i.test(g.split('-')[0]));

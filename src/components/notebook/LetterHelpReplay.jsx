@@ -112,10 +112,10 @@ export function buildGlyph(text, wp) {
   return { strokes: timed, total: t, width };
 }
 
-export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedChange, compact = false }) {
+export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedChange, compact = false, autoPlay = true }) {
   const glyph = useMemo(() => buildGlyph(text, waypoints), [text, waypoints]);
   const [time, setTime] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(autoPlay);
   const raf = useRef(0);
   const timeRef = useRef(0);
   const seek = v => { timeRef.current = v; setTime(v); };
@@ -146,7 +146,7 @@ export default function LetterHelpReplay({ text, waypoints, speed = .5, onSpeedC
     tip.setAttribute('visibility', 'visible');
   }, [time, glyph, activeIndex]);
 
-  useEffect(() => { seek(0); setPlaying(true); }, [text, waypoints]); // eslint-disable-line
+  useEffect(() => { seek(0); setPlaying(autoPlay); }, [text, waypoints, autoPlay]); // eslint-disable-line
   useEffect(() => {
     if (!playing || !glyph?.strokes) return;
     let last = performance.now();

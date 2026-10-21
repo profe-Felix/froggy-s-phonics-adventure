@@ -28,7 +28,7 @@ import WordBuilderPresetEditor from '@/components/wordbuilder/WordBuilderPresetE
 import BookPicker from '@/components/lesson/BookPicker';
 import BookVocabularyLibrary from '@/components/lesson/BookVocabularyLibrary';
 import useBookVocabulary from '@/hooks/useBookVocabulary';
-import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { pathwayLabel, lessonCoverage } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useClassNames } from '@/hooks/useClassNames';
 
 function CurriculumListInput({ items = [], onChange, multiline = false }) {
@@ -2115,6 +2115,7 @@ export default function LessonEditor() {
                         {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : l.language === 'es' ? pathwayLabel(l.lesson_number) : `Week ${l.lesson_number || ''}`}
                       </p>
                       <h3 className="text-lg font-black text-gray-800">{l.title}</h3>
+                      {lessonCoverage(l) && <p className="text-xs font-bold text-indigo-600">{lessonCoverage(l)}</p>}
                       <p className="text-xs text-gray-500">{l.subtitle}</p>
                     </div>
                     {!l.active && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">hidden</span>}
