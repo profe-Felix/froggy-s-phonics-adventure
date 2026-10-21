@@ -141,11 +141,12 @@ export default function GameHome({
           <LevelPath
             studentData={studentData}
             selectedStudent={selectedStudent}
-            onOpenLesson={(l, day) => setOpenLesson({ id: l.id, day })}
+            onOpenLesson={(l, day, stepIndex) => setOpenLesson({ id: l.id, day, stepIndex })}
             onStartStep={onStartStep}
             onLogout={onLogout}
             onStudentPatch={onStudentPatch}
             parentView={parentView}
+            accessContext={accessContext}
             onOpenWheel={openWheel}
           />
         )}
@@ -156,6 +157,7 @@ export default function GameHome({
             selectedStudent={selectedStudent}
             initialLessonId={openLesson.id}
             initialDay={openLesson.day}
+            initialStepIndex={openLesson.stepIndex}
             onBack={() => setOpenLesson(null)}
             onFreePlay={() => go('games')}
             onLogout={onLogout}

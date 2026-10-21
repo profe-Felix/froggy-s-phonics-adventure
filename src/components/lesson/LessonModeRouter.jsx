@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
-import { useLessonProgress } from '@/hooks/useLessonProgress';
+import { useFamilyLessonProgress } from '@/hooks/useFamilyLessonProgress';
 import { base44 } from '@/api/base44Client';
 
 import LetterSoundsMode from '@/components/game/modes/LetterSoundsMode';
@@ -33,6 +33,7 @@ export default function LessonModeRouter({
   step,
   stepIndex,
   lessonId,
+  progressPlan = null,
   totalSteps,
   studentData,
   selectedStudent,
@@ -51,15 +52,19 @@ export default function LessonModeRouter({
   goalContainer = null,
   activityTitleContainer = null,
 }) {
-  const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
+  const { progress, markStepComplete, saveActivityState, getActivityState } = useFamilyLessonProgress(
     selectedStudent?.number,
     selectedStudent?.class_name,
-    lessonId
+    lessonId,
+    progressPlan
   );
 
   const alreadyDone = (progress?.completed_steps || []).includes(stepIndex);
 
   const [done, setDone] = useState(alreadyDone);
+  const [familySaving, setFamilySaving] = useState(false);
+  const [familySaveError, setFamilySaveError] = useState(false);
+  const familyRetryMeta = useRef(null);
 
   const [
     catalogRecordingPages,
@@ -357,7 +362,7 @@ export default function LessonModeRouter({
     ]);
 
   const finishFirstRun =
-    useCallback((meta) => {
+    useCallback(async (meta) => {
       if (completedOnceRef.current) {
         return;
       }
@@ -388,6 +393,22 @@ export default function LessonModeRouter({
       completedOnceRef.current =
         true;
 
+      if (progressPlan) {
+        familyRetryMeta.current = meta;
+        setFamilySaving(true);
+        setFamilySaveError(false);
+        try {
+          if (!await markStepComplete(stepIndex, totalSteps)) throw new Error('Progress not ready');
+          setDone(true);
+        } catch {
+          completedOnceRef.current = false;
+          setFamilySaveError(true);
+        } finally {
+          setFamilySaving(false);
+        }
+        return;
+      }
+
       setDone(true);
 
       markStepComplete(
@@ -401,6 +422,7 @@ export default function LessonModeRouter({
       stepIndex,
       totalSteps,
       markStepComplete,
+      progressPlan,
     ]);
 
   const finishReplayRun =
@@ -1267,6 +1289,11 @@ export default function LessonModeRouter({
       {/* Completion overlay — hidden in live mode because teacher drives pacing.
           Tap anywhere to dismiss; the dot turns green and students navigate
           with the dots/arrows. */}
+      {familySaving && <div role="status" className="absolute bottom-3 left-3 z-[101] rounded-xl bg-white p-3 shadow">Saving progress…</div>}
+      {familySaveError && <div role="alert" className="absolute bottom-3 left-3 z-[101] rounded-xl bg-white p-3 shadow">
+        Your progress could not save. Stay here and try again.
+        <button type="button" className="ml-3 font-bold underline" onClick={() => finishFirstRun(familyRetryMeta.current)}>Retry save</button>
+      </div>}
       {done &&
         !liveMode && (
           <div

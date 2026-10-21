@@ -6,7 +6,9 @@ import LessonStepper from './LessonStepper';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
 import DayCarousel from './DayCarousel';
-import { dailyLessonLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { dailyLessonLabel, pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { isTeacherModelStudent } from '@/lib/teacherModel';
+import { buildFamilyActivityPlan, familyLevelTitle, isFamilyPath } from '@/lib/literacy/familyActivityPlan.mjs';
 
 const WEEKDAYS = [
   { value: 'monday', label: 'Monday' },
@@ -95,6 +97,7 @@ export default function LessonMap({
   onFreePlay,
   initialLessonId,
   initialDay,
+  initialStepIndex,
   onBack,
   onLessonComplete,
   accessContext = 'school',
@@ -120,6 +123,8 @@ export default function LessonMap({
 
   const currentLesson =
     myLessons[Math.min(lessonIdx, myLessons.length - 1)] || null;
+  const familyPlan = useMemo(() => isFamilyPath(currentLesson) && !isTeacherModelStudent(selectedStudent?.number)
+    ? buildFamilyActivityPlan(currentLesson, accessContext) : null, [currentLesson, accessContext, selectedStudent?.number]);
 
   const {
     progress: weekProgress,
@@ -145,6 +150,24 @@ export default function LessonMap({
 
   if (!myLessons.length) {
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;
+  }
+
+  if (familyPlan) {
+    return <LessonStepper
+      key={`${currentLesson.id}:family:${accessContext}`}
+      studentData={studentData}
+      selectedStudent={selectedStudent}
+      lesson={{ ...currentLesson, title: familyLevelTitle(currentLesson), subtitle: '', familyView: true }}
+      steps={familyPlan.slots.map(slot => slot.step)}
+      progressPlan={familyPlan}
+      initialStepIndex={initialStepIndex}
+      lessonId={currentLesson.id}
+      onBack={onBack}
+      onLessonComplete={onLessonComplete}
+      onUpdateProgress={onUpdateProgress}
+      onStudentPatch={onStudentPatch}
+      accessContext={accessContext}
+    />;
   }
 
   const dailyLessons = WEEKDAYS.map(({ value, label }, dayIndex) => {
@@ -231,7 +254,7 @@ export default function LessonMap({
 
             <div>
               <h1 className="text-2xl font-black text-indigo-900">
-                Week {currentLesson.lesson_number || ''}
+                {currentLesson.language === 'es' ? pathwayLabel(currentLesson.lesson_number) : `Week ${currentLesson.lesson_number || ''}`}
               </h1>
               <p className="text-sm text-gray-600">
                 {currentLesson.subtitle || currentLesson.title}

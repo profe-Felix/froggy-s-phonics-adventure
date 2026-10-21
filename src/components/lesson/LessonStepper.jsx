@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLessonProgress } from '@/hooks/useLessonProgress';
+import { useFamilyLessonProgress } from '@/hooks/useFamilyLessonProgress';
 import { X, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
 import LessonOverview from './LessonOverview';
@@ -17,16 +17,19 @@ export default function LessonStepper({
   lesson,
   steps,
   lessonId,
+  progressPlan = null,
+  initialStepIndex,
   onBack,
   onLessonComplete,
   onUpdateProgress,
   onStudentPatch,
   accessContext = 'school',
 }) {
-  const { progress, isLoading, createError, retry } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
+  const { progress, isLoading, createError, retry } = useFamilyLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId, progressPlan);
   const completedSteps = progress?.completed_steps || [];
-  const [stepIdx, setStepIdx] = useState(0);
-  const [viewMode, setViewMode] = useState('overview');
+  const [stepIdx, setStepIdx] = useState(Number.isInteger(initialStepIndex)
+    ? Math.max(0, Math.min(initialStepIndex, steps.length - 1)) : 0);
+  const [viewMode, setViewMode] = useState(Number.isInteger(initialStepIndex) ? 'activity' : 'overview');
   const [bookGoalContainer, setBookGoalContainer] = useState(null);
   const [fluencyTitleContainer, setFluencyTitleContainer] = useState(null);
   const activitySaveRef = useRef(null);
@@ -333,6 +336,7 @@ export default function LessonStepper({
           step={step}
           stepIndex={curOriginalIndex}
           lessonId={lessonId}
+          progressPlan={progressPlan}
           totalSteps={completionStepCount}
           studentData={studentData}
           selectedStudent={selectedStudent}

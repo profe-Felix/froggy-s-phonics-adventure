@@ -52,7 +52,7 @@ export default function LessonOverview({
               )}
               <h1 className="text-xl font-black" style={{ color: '#26264d' }}>
                 {allDone
-                  ? `Lesson ${lesson?.lesson_number || ''} Complete!`
+                  ? `${lesson?.familyView ? 'Level' : 'Lesson'} ${lesson?.lesson_number || ''} Complete!`
                   : (lesson?.title || `Lesson ${lesson?.lesson_number || ''}`)}
               </h1>
             </div>
@@ -65,7 +65,9 @@ export default function LessonOverview({
 
         {/* Cards */}
         <div className="flex-1 flex items-center justify-center px-4 pb-6">
-            <div className="flex gap-4 flex-wrap justify-center max-w-4xl">
+            <div className={lesson?.familyView
+              ? 'flex gap-4 overflow-x-auto snap-x snap-mandatory w-full py-5 px-3'
+              : 'flex gap-4 flex-wrap justify-center max-w-4xl'}>
               {steps.map(({ step, originalIndex }, i) => {
                 const done = completedSteps.includes(originalIndex);
                 const isNext = i === firstIncomplete;
@@ -75,7 +77,7 @@ export default function LessonOverview({
                   <button
                     key={i}
                     onClick={() => onStepClick(i)}
-                    className={`relative rounded-3xl p-5 flex flex-col items-center justify-center aspect-square w-36 sm:w-44 transition-all shadow-lg border-4 border-white/70 ${c.solid} ${isNext ? 'lesson-card-pulse' : 'hover:scale-[1.03] hover:shadow-xl'}`}
+                    className={`relative rounded-3xl p-5 flex flex-col items-center justify-center aspect-square w-36 sm:w-44 shrink-0 snap-center transition-all shadow-lg border-4 border-white/70 ${c.solid} ${isNext ? 'lesson-card-pulse' : 'hover:scale-[1.03] hover:shadow-xl'}`}
                   >
                     {/* number */}
                     <span className="absolute top-2 left-3 text-5xl font-black text-white/55 select-none pointer-events-none">

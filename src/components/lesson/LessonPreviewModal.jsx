@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { pathwayLabel, dailyLessonLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { buildFamilyActivityPlan, familyLevelTitle } from '@/lib/literacy/familyActivityPlan.mjs';
 import { ArrowLeft, Check, Info, Play } from 'lucide-react';
 
 // Lesson preview shown when a level puck is tapped (both parent and student
@@ -400,17 +401,17 @@ const STYLES = `
   }
 `;
 
-export default function LessonPreviewModal({ lesson, isCompleted, studentName, onPlay, onClose, onStartStep }) {
+export default function LessonPreviewModal({ lesson, isCompleted, studentName, onPlay, onClose, onStartStep, familyView = false, accessContext = 'school' }) {
   const [showInfo, setShowInfo] = useState(false);
   if (!lesson) return null;
 
   const num = lesson.lesson_number || 1;
-  const subtitle = lesson.subtitle || lesson.title || '';
+  const subtitle = familyView ? 'Practice the activities in this level.' : lesson.subtitle || lesson.title || '';
   const body = studentName
     ? `${studentName} will ${subtitle.charAt(0).toLowerCase()}${subtitle.slice(1)}`
     : subtitle;
   const hasDailyLessons = (lesson.daily_lessons || []).length > 0;
-  const steps = lesson.steps?.length > 0
+  const steps = familyView ? buildFamilyActivityPlan(lesson, accessContext).slots.map(slot => slot.step) : lesson.steps?.length > 0
     ? lesson.steps
     : hasDailyLessons
       ? WEEKDAYS.map(({ value, label }, dayIndex) => {
@@ -439,7 +440,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
             ) : (
               <span className="lp-play-icon"><Play size={16} strokeWidth={0} fill="white" /></span>
             )}
-            {lesson.language === 'es' ? pathwayLabel(num) : `Lesson ${num}`}{isCompleted ? ' Complete!' : ''}
+            {familyView ? familyLevelTitle(lesson) : lesson.language === 'es' ? pathwayLabel(num) : `Lesson ${num}`}{isCompleted ? ' Complete!' : ''}
           </h1>
           <p className="lp-subtitle">{body}</p>
         </div>
@@ -455,7 +456,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
         <main>
           <section className="lp-steps-wrap" aria-label="Lesson steps">
             <p className="lp-steps-label">
-              {hasDailyLessons && !lesson.steps?.length && lesson.language === 'es'
+              {familyView ? `${steps.length} activities in this level` : hasDailyLessons && !lesson.steps?.length && lesson.language === 'es'
                 ? `${steps.length} lesson${steps.length !== 1 ? 's' : ''} in this week`
                 : `${steps.length} part${steps.length !== 1 ? 's' : ''} in this lesson`}
             </p>
@@ -468,7 +469,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                     className="lp-step"
                     type="button"
                     aria-label={`${step.title}, lesson step ${i + 1}`}
-                    onClick={() => lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay(step._day)}
+                    onClick={() => familyView || lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay(step._day)}
                   >
                     <div className="lp-step-card" style={{ background: color }}>
                       <span className="lp-number">{step._lessonNumber || i + 1}</span>
@@ -492,6 +493,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
 
       {/* Start / Play again button */}
       <button className="lp-start" type="button" onClick={() => {
+        if (familyView) { onStartStep?.(steps[0], 0, lesson); return; }
         if (hasDailyLessons) {
           const firstDay = WEEKDAYS.find(({ value }) => {
             const dl = (lesson.daily_lessons || []).find(d => d.day === value);
@@ -503,7 +505,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
         }
       }}>
         <span className="lp-start-icon">🦊</span>
-        <span className="lp-start-text">{isCompleted ? 'Play again' : 'Start lesson'}</span>
+        <span className="lp-start-text">{isCompleted ? 'Play again' : familyView ? 'Start level' : 'Start lesson'}</span>
         <Play className="lp-start-arrow" size={20} strokeWidth={2.5} />
       </button>
 

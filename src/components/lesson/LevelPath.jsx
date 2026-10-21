@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { pathwayLabel, pathwayRangeLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { isFamilyPath } from '@/lib/literacy/familyActivityPlan.mjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
@@ -33,9 +34,10 @@ function defaultPos(i) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onStartStep, onLogout, onStudentPatch, parentView, onOpenWheel }) {
+export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onStartStep, onLogout, onStudentPatch, parentView, onOpenWheel, accessContext = 'school' }) {
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
+  const teacherView = isTeacherModelStudent(studentNumber);
   const qc = useQueryClient();
   const { colorFor } = useClassColors();
   const classColor = colorFor(className);
@@ -320,6 +322,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           return (
             <button
               key={n}
+              aria-label={`${teacherView && lesson?.language === 'es' ? pathwayLabel(n) : `Level ${n}`}${locked ? ', locked' : done ? ', completed' : ''}`}
               ref={!editing && active ? activeRef : null}
               disabled={locked && !editing}
               onClick={(e) => {
@@ -347,16 +350,16 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
             >
               {locked && !editing ? (
                 <>
-                  <span className="font-black text-gray-400" style={{ fontSize: lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont, textAlign: 'center', lineHeight: 1.15 }}>
-                    {lesson?.language === 'es' ? pathwayLabel(n) : n}
-                    {pathwayRangeLabel(lesson) && <small style={{ display: 'block', fontSize: Math.max(6.5, dotSize * .15), fontWeight: 600, marginTop: 2 }}>{pathwayRangeLabel(lesson)}</small>}
+                  <span className="font-black text-gray-400" style={{ fontSize: teacherView && lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont, textAlign: 'center', lineHeight: 1.15 }}>
+                    {teacherView && lesson?.language === 'es' ? pathwayLabel(n) : n}
+                    {teacherView && pathwayRangeLabel(lesson) && <small style={{ display: 'block', fontSize: Math.max(6.5, dotSize * .15), fontWeight: 600, marginTop: 2 }}>{pathwayRangeLabel(lesson)}</small>}
                   </span>
                   <Lock className="absolute top-0.5 right-0.5 text-gray-400/80" style={{ width: lockSize, height: lockSize }} />
                 </>
               ) : (
-                <span className="font-black" style={{ color: done ? '#ffffff' : '#311B92', fontSize: lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont, textAlign: 'center', lineHeight: 1.15 }}>
-                  {lesson?.language === 'es' ? pathwayLabel(n) : n}
-                  {pathwayRangeLabel(lesson) && <small style={{ display: 'block', fontSize: Math.max(6.5, dotSize * .15), fontWeight: 600, marginTop: 2 }}>{pathwayRangeLabel(lesson)}</small>}
+                <span className="font-black" style={{ color: done ? '#ffffff' : '#311B92', fontSize: teacherView && lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont, textAlign: 'center', lineHeight: 1.15 }}>
+                  {teacherView && lesson?.language === 'es' ? pathwayLabel(n) : n}
+                  {teacherView && pathwayRangeLabel(lesson) && <small style={{ display: 'block', fontSize: Math.max(6.5, dotSize * .15), fontWeight: 600, marginTop: 2 }}>{pathwayRangeLabel(lesson)}</small>}
                 </span>
               )}
               {done && !editing && (
@@ -387,13 +390,16 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
       {previewLesson && (
         <LessonPreviewModal
           lesson={previewLesson.lesson}
+          familyView={isFamilyPath(previewLesson.lesson) && !teacherView}
+          accessContext={accessContext}
           isCompleted={previewLesson.done}
           studentName={studentData?.name?.split(' ')[0]}
           onPlay={(day) => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l, day); }}
           onClose={() => setPreviewLesson(null)}
           onStartStep={(step, index, l) => {
             setPreviewLesson(null);
-            onStartStep?.(step, index, l);
+            if (isFamilyPath(l) && !teacherView) onOpenLesson(l, 'family', index);
+            else onStartStep?.(step, index, l);
           }}
         />
       )}
