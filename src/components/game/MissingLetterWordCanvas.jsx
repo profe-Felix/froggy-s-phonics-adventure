@@ -632,7 +632,7 @@ export default function MissingLetterWordCanvas({
             <text key={`pre-${li}`} x={lay.offset + lay.width / 2} y={0.633 * CANVAS_H}
               textAnchor="middle" dominantBaseline="alphabetic"
               fontSize={TEXT_FONT_SIZE} fill="#22c55e" opacity="0.75"
-              fontFamily="'Edu NSW ACT Foundation', 'Andika', sans-serif"
+              fontFamily="'Andika', sans-serif"
               pointerEvents="none">{lay.ch}</text>
           );
         })}

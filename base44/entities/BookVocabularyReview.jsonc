@@ -1,0 +1,20 @@
+{
+  "name": "BookVocabularyReview",
+  "type": "object",
+  "description": "Shared, reversible teacher decisions about non-personal curriculum vocabulary; kept separately from book scans.",
+  "properties": {
+    "kind": { "type": "string", "enum": ["word", "syllable", "settings"] },
+    "text": { "type": "string" },
+    "status": { "type": "string", "enum": ["pending", "approved", "excluded"], "default": "pending" },
+    "replacement": { "type": "string", "default": "" },
+    "syllables": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "approved_only": { "type": "boolean", "default": false }
+  },
+  "required": ["kind", "text"],
+  "rls": {
+    "read": null,
+    "create": null,
+    "update": null,
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}

@@ -29,7 +29,7 @@ function HalfPage({ lang, origin }) {
     }}>
       <div style={{ fontSize: '2.2rem', marginBottom: '0.15in' }}>🚌</div>
       <h2 style={{
-        fontFamily: "'Teachers', sans-serif",
+        fontFamily: "'Andika', sans-serif",
         fontSize: '1.4rem', fontWeight: 800, color: '#1e293b',
         marginBottom: '0.2in', textAlign: 'center',
       }}>

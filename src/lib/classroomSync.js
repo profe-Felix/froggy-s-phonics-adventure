@@ -68,7 +68,7 @@ export function assessmentItemStyle(type) {
   const letters = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'];
 
   return {
-    fontFamily: letters.includes(type) ? "'Teachers', sans-serif" : "'Andika', sans-serif",
+    fontFamily: "'Andika', sans-serif",
     fontWeight: 700,
     fontStyle: 'normal',
     fontSynthesis: 'none',

@@ -4,6 +4,7 @@ import { canDecodeWord, normalizeSpanish } from './lessonProgression.js';
 import { syllabifyEs } from '../lettersort/phonics.js';
 import { cleanPracticeWords } from './dailyFluency.mjs';
 import { bookLessonTags } from '../book/lessonTags.mjs';
+import { applyVocabularyReviews } from './vocabularyReview.mjs';
 
 export const PATH_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 export function pathwayLabel(number) {
@@ -69,12 +70,12 @@ export function sourceSignature(book) {
 export function indexVocabulary(values) {
   return cleanPracticeWords(values).map(word => ({ word, syllables: syllabifyEs(word) }));
 }
-export function decodableBookPool(indexes, position, { books = [], kind = 'words', limit = 80 } = {}) {
+export function decodableBookPool(indexes, position, { books = [], kind = 'words', limit = 80, reviews = [] } = {}) {
   const graphemes = getIntroducedGraphemesThrough(position);
   const hfw = new Set(knownSightWordsAt({ moduleNumber: 9, lessonNumber: 20 }).map(normalizeSpanish));
   const byId = new Map(books.map(b => [b.id, b]));
   const selected = [];
-  for (const row of indexes) {
+  for (const row of applyVocabularyReviews(indexes, reviews)) {
     const book = byId.get(row.book_id);
     if (!book || (book.language && !['es', 'bilingual'].includes(book.language))) continue;
     let priority = 0;
@@ -86,6 +87,7 @@ export function decodableBookPool(indexes, position, { books = [], kind = 'words
       priority = 1000 + moduleNumber * 20 + Number(tags[0].slice(1));
     }
     for (const entry of row.entries || []) {
+      if (kind !== 'syllables' && entry.wordAllowed === false) continue;
       if (hfw.has(normalizeSpanish(entry.word))) continue;
       const candidates = kind === 'syllables' ? entry.syllables || [] : [entry.word];
       for (const text of candidates) {

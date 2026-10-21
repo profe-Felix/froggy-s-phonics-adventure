@@ -101,7 +101,7 @@ export default function LetterInkFillOverlay({ text, continuity = 0 }) {
     <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden" style={{ background: '#ffffff' }}>
       <div style={{
         textAlign: 'center',
-        fontFamily: 'Teachers, sans-serif',
+        fontFamily: 'Andika, sans-serif',
         fontWeight: 700,
         fontSize: `${fontSize}px`,
         lineHeight: 1.15,

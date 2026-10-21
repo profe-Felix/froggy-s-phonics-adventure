@@ -53,8 +53,8 @@ export default function AutoFitWord({
         ref={textRef}
         style={{
           fontWeight: 400,
-          fontFamily: "'Teachers', system-ui, sans-serif",
-          fontFeatureSettings: "'ss10'",
+          fontFamily: "'Andika', sans-serif",
+          fontFeatureSettings: "'ss01' 0, 'ss13' 0",
           color: '#1e293b',
           lineHeight: 1.05,
           whiteSpace: 'nowrap',

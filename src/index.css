@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Edu+NSW+ACT+Foundation:wght@400;700&family=Happy+Monkey&family=Teachers:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700;1,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap');
 
 @font-face {
   font-family: 'ZBKidLettersArrowDot';
@@ -10,8 +10,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Text-only styling for the stable notebook: do not alter its drawing engine. */
+body .nbs, body .nbv, body .nbt {
+  font-family: var(--font-kinder);
+}
+
 @layer base {
   :root {
+    --font-kinder: 'Andika', sans-serif;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -92,9 +98,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Teachers', 'Andika', sans-serif;
-    /* ss10 = single-story 'a' (teacher-friendly letterform for early readers) */
-    font-feature-settings: 'ss10';
+    font-family: var(--font-kinder);
+    /* Andika's standard forms have a single-storey a and a barred capital I. */
+    font-feature-settings: 'ss01' 0, 'ss13' 0;
   }
 }
 
@@ -333,8 +339,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Teachers', system-ui, sans-serif;
-  font-feature-settings: 'ss10';
+  font-family: var(--font-kinder);
+  font-feature-settings: 'ss01' 0, 'ss13' 0;
   font-weight: 400;
   font-size: 0.26in;
   color: #1e293b;
@@ -442,7 +448,7 @@
 
 /* Tag font for table tags / mailbox labels */
 .tag-font {
-  font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-kinder);
 }
 
 /* Name practice sheet — uses ZBKidLettersArrowDot font with handwriting guide lines */
@@ -510,7 +516,7 @@
 }
 .booklet-title {
   text-align: center;
-  font-family: 'Teachers', sans-serif;
+  font-family: var(--font-kinder);
   font-size: 0.32in;
   font-weight: 700;
   color: #1e293b;
@@ -525,7 +531,7 @@
   text-align: center;
   font-size: 0.26in;
   color: #64748b;
-  font-family: 'Teachers', sans-serif;
+  font-family: var(--font-kinder);
 }
 .booklet-zoom-container {
   width: calc(11in * var(--bk-zoom, 1));
