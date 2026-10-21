@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { draftStorage } from "./recordingDrafts";
 import { recordingScope, MAX_RECORDING_MS } from "./recordingModel.mjs";
+import { requestMicrophone, createAudioRecorder, microphoneMessage } from "./recordingAudio.mjs";
 
 const message = e => e?.response?.data?.error || e?.message || "Recording failed. Keep this page open and retry.";
 async function request(scope, page, action, body = {}) {
@@ -28,6 +29,7 @@ export function useNativeRecording({ scope, page, operations, rootRef, finishGes
   const [elapsed, setElapsed] = useState(0), [laserMode, setLaserMode] = useState(false), [laser, setLaser] = useState(null);
   const [playback, setPlayback] = useState(null), playTicket = useRef(null);
   const stopRef = useRef(null);
+  const startup = useRef(null);
   const changePhase = value => { phaseRef.current = value; setPhase(value); };
   const upsert = note => setNotes(old => [...old.filter(n => n.pin_id !== note.pin_id), note]);
   useEffect(() => {
@@ -55,6 +57,12 @@ export function useNativeRecording({ scope, page, operations, rootRef, finishGes
     return () => {
       alive = false; playTicket.current = null;
       mounted.current = false;
+      const attempt = startup.current;
+      if (attempt?.key === key) {
+        attempt.cancelled = true;
+        attempt.stream?.getTracks().forEach(t => t.stop());
+        startup.current = null;
+      }
       const ctx = context.current;
       if (ctx && ctx.key === key && ctx.recorder.state !== "inactive") ctx.recorder.stop();
     };
@@ -122,25 +130,30 @@ export function useNativeRecording({ scope, page, operations, rootRef, finishGes
     if (readOnly || !latest.current.enabled || phaseRef.current !== "idle") return;
     if (note.has_audio) { setError("Drop another microphone to make a new recording."); return; }
     changePhase("starting"); setError(""); setPlacing(false);
+    const attempt = { key, stream: null, cancelled: false };
+    startup.current = attempt;
+    const ownsAttempt = () => mounted.current && latest.current.key === key && startup.current === attempt && !attempt.cancelled;
     let stream;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
-        throw Error("Audio recording is not supported in this browser. Try Safari or Chrome.");
+      if (typeof MediaRecorder === "undefined")
+        throw Error("Audio recording is not supported. Open this notebook in Safari on an updated iPad.");
+      // No await (including network or IndexedDB) before requesting permission.
+      stream = await requestMicrophone();
+      attempt.stream = stream;
+      if (!ownsAttempt()) { stream.getTracks().forEach(t => t.stop()); return; }
       if (await latest.current.finishGesture?.() === false) throw Error("Finish saving your writing before recording.");
-      // Verify recovery storage before opening the microphone.
+      // Still require safe recovery storage and a valid pin before recording.
       await draftStorage("get", key);
       await request(scope, page, "pin", { pin: note });
-      if (!mounted.current || latest.current.key !== key) return;
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mounted.current || latest.current.key !== key) { stream.getTracks().forEach(t => t.stop()); return; }
-      const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"]
-        .find(mime => MediaRecorder.isTypeSupported(mime));
-      const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      if (!ownsAttempt()) { stream.getTracks().forEach(t => t.stop()); return; }
+      if (!latest.current.enabled) throw Error("Recording is paused by the teacher. Wait until this notebook is released.");
+      const recorder = createAudioRecorder(stream);
       const ctx = { key, scope, page, note, recorder, stream, chunks: [], events: [], pointer: [],
         started: 0, known: new Set(), recording_id: crypto.randomUUID(), timer: null };
       ctx.done = new Promise(resolve => { ctx.resolve = resolve; });
       context.current = ctx; setSelectedId(note.id);
       recorder.onstart = () => {
+        if (!ownsAttempt() || !latest.current.enabled) { recorder.stop(); return; }
         ctx.started = Date.now();
         ctx.baseOperations = structuredClone(latest.current.operations || []);
         ctx.known = new Set(ctx.baseOperations.map(op => op.id));
@@ -153,28 +166,50 @@ export function useNativeRecording({ scope, page, operations, rootRef, finishGes
       };
       recorder.ondataavailable = event => { if (event.data?.size) ctx.chunks.push(event.data); };
       recorder.onerror = event => {
-        setError(message(event.error || Error("Microphone recording was interrupted.")));
+        if (latest.current.key === ctx.key)
+          setError(message(event.error || Error("Microphone recording was interrupted.")));
         if (recorder.state !== "inactive") recorder.stop();
       };
       recorder.onstop = async () => {
         clearInterval(ctx.timer); ctx.stream.getTracks().forEach(t => t.stop());
+        if (!ctx.started) {
+          if (context.current === ctx) context.current = null;
+          if (ownsAttempt()) changePhase("idle");
+          ctx.resolve(false);
+          return;
+        }
         captureInk(ctx);
         const duration_ms = Math.min(MAX_RECORDING_MS + 4000, Math.max(1, Date.now() - ctx.started));
         const draft = { key: ctx.key, scope: ctx.scope, page: ctx.page, note: ctx.note, recording_id: ctx.recording_id,
-          blob: new Blob(ctx.chunks, { type: recorder.mimeType || type || "audio/webm" }),
+          blob: new Blob(ctx.chunks, { type: recorder.mimeType || ctx.chunks.find(chunk => chunk.type)?.type || "application/octet-stream" }),
           timeline: { version: 1, scope_key: scopeKey, page: ctx.page, duration_ms,
             baseOperations: ctx.baseOperations || [], events: ctx.events, pointer: ctx.pointer } };
-        context.current = null; setLaser(null); setLaserMode(false);
-        pending.current = draft;
-        if (!draft.blob.size) { changePhase("idle"); setError("No audio was captured. Please try again."); ctx.resolve(false); return; }
+        if (context.current === ctx) context.current = null;
+        if (latest.current.key === ctx.key) {
+          setLaser(null); setLaserMode(false); pending.current = draft;
+        }
+        if (!draft.blob.size) {
+          if (latest.current.key === ctx.key) { changePhase("idle"); setError("No audio was captured. Please try again."); }
+          ctx.resolve(false); return;
+        }
         const ok = await saveDraft(draft);
         ctx.resolve(ok);
       };
-      recorder.start(500);
+      recorder.start(1000);
     } catch (e) {
       stream?.getTracks().forEach(t => t.stop());
-      if (latest.current.key === key) { changePhase("idle"); setError(message(e)); }
+      if (context.current?.recorder?.state === "inactive" && context.current?.key === key) {
+        context.current.resolve(false); context.current = null;
+      }
+      if (ownsAttempt()) { startup.current = null; changePhase("idle"); setError(microphoneMessage(e)); }
     }
+  };
+  const cancelStart = () => {
+    if (phaseRef.current !== "starting") return;
+    const attempt = startup.current;
+    if (attempt) { attempt.cancelled = true; attempt.stream?.getTracks().forEach(t => t.stop()); }
+    startup.current = null;
+    changePhase("idle"); setError("");
   };
   const stop = async () => {
     const ctx = context.current;
@@ -252,7 +287,7 @@ export function useNativeRecording({ scope, page, operations, rootRef, finishGes
   return { notes, loading, error, phase, elapsed, placing,
     canRecord: enabled && !readOnly,
     setPlacing: value => setPlacing(enabled && !readOnly && phaseRef.current === "idle" ? value : false), selectedId, setSelectedId,
-    record, stop, retry, discard, remove, move, play, playback, closePlayback: () => { playTicket.current = null; setPlayback(null); },
+    record, cancelStart, stop, retry, discard, remove, move, play, playback, closePlayback: () => { playTicket.current = null; setPlayback(null); },
     laserMode, setLaserMode, laser, finish,
     pageHandlers: { onPointerDownCapture: e => capture(e, "down"), onPointerMoveCapture: e => capture(e, "move"),
       onPointerUpCapture: e => capture(e, "up"), onPointerCancelCapture: e => capture(e, "up") } };

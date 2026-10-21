@@ -64,8 +64,8 @@ test("V2/V3 share recording controls and teacher replay without changing the sta
   ]);
   assert.match(student, /NativeRecordingTools/); assert.match(teacher, /NativeRecordingTools/);
   assert.match(student, /voiceRef\.current\?\.finish/);
-  assert.match(hook, /draftStorage\("put"/); assert.match(hook, /getUserMedia\(\{ audio: true \}\)/);
-  assert.match(hook, /!mounted\.current \|\| latest\.current\.key !== key/);
+  assert.match(hook, /draftStorage\("put"/); assert.match(hook, /await requestMicrophone\(\)/);
+  assert.match(hook, /mounted\.current && latest\.current\.key === key/);
   assert.doesNotMatch(hook, /getDisplayMedia|video:\s*true/);
   assert.match(endpoint, /UploadPrivateFile/); assert.match(endpoint, /CreateFileSignedUrl/);
   assert.doesNotMatch(endpoint, /entities\.NotebookSession|invoke\(["']externalNotebook/);

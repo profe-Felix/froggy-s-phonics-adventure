@@ -7,7 +7,7 @@ import { recordingFrame } from "@/lib/notebook2/recordingModel.mjs";
 
 const CSS = `
 .nrt-panel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 6px;margin:4px 0;border-radius:12px;background:hsl(48 60% 98%);font-size:13px}
-.nrt-btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;min-width:40px;padding:0 10px;border:0;border-radius:10px;background:hsl(200 30% 93%);color:hsl(200 30% 18%);font:inherit;font-weight:700;cursor:pointer}
+.nrt-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;min-width:44px;padding:0 10px;border:0;border-radius:10px;background:hsl(200 30% 93%);color:hsl(200 30% 18%);font:inherit;font-weight:700;cursor:pointer;touch-action:manipulation}
 .nrt-btn:disabled{opacity:.4;cursor:not-allowed}
 .nrt-btn:focus-visible,.nrt-pin:focus-visible{outline:3px solid hsl(28 90% 52%);outline-offset:2px}
 .nrt-btn[aria-pressed=true]{box-shadow:inset 0 0 0 2px hsl(195 55% 32%);background:hsl(195 45% 88%)}
@@ -167,24 +167,31 @@ export default function NativeRecordingTools({ voice, rootRef, readOnly = false,
             {!readOnly && phase === "idle" && (
               <button type="button" className="nrt-btn" disabled={voice.canRecord === false} aria-pressed={!!voice.placing} onClick={() => voice.setPlacing(!voice.placing)}
                 aria-label={voice.placing ? "Cancel microphone drop" : "Drop a microphone on the page"} data-testid="button-voice-place">
-                <Mic /><span className="nrt-lbl">{voice.placing ? "Tap the page..." : "Mic"}</span></button>
+                <Mic /><span>{voice.placing ? "Tap the page where you want to explain" : "Explain your work out loud"}</span></button>
             )}
-            {notes.length === 0 && !voice.placing && <span className="nrt-status">{readOnly ? "No voice notes on this page." : "No voice notes yet."}</span>}
+            {readOnly && notes.length === 0 && <span className="nrt-status">No voice notes on this page.</span>}
             {sel && phase === "idle" && <>
               {sel.has_audio && <button type="button" className="nrt-btn" data-kind="primary" onClick={() => voice.play(sel)} aria-label="Play voice note" data-testid="button-voice-play">Play</button>}
-              {!readOnly && !sel.has_audio && <button type="button" className="nrt-btn" disabled={voice.canRecord === false} data-kind="rec" onClick={() => voice.record(sel)} aria-label="Start recording" data-testid="button-voice-record"><Mic />Record</button>}
+              {!readOnly && !sel.has_audio && <>
+                <span className="nrt-status">Pin placed. Ready to explain?</span>
+                <button type="button" className="nrt-btn" disabled={voice.canRecord === false} data-kind="rec" onClick={() => voice.record(sel)} aria-label="Start recording" data-testid="button-voice-record"><Mic />Record</button>
+              </>}
               {!readOnly && (confirm
                 ? <><span className="nrt-status">Delete?</span>
                   <button type="button" className="nrt-btn" data-kind="rec" onClick={() => { setConfirm(false); voice.remove(sel); }} aria-label="Confirm delete voice note" data-testid="button-voice-confirm-delete">Yes</button>
                   <button type="button" className="nrt-btn" onClick={() => setConfirm(false)} aria-label="Keep voice note">No</button></>
                 : <button type="button" className="nrt-btn" onClick={() => setConfirm(true)} aria-label="Delete voice note" data-testid="button-voice-delete">Delete</button>)}
             </>}
-            {phase === "starting" && <span className="nrt-status" role="status">Starting microphone...</span>}
+            {phase === "starting" && <>
+              <span className="nrt-status" role="status">Waking the microphone… Allow access if asked.</span>
+              <button type="button" className="nrt-btn" onClick={() => voice.cancelStart()} aria-label="Cancel starting microphone" data-testid="button-voice-cancel-start">Cancel</button>
+            </>}
             {phase === "recording" && <>
               <span className="nrt-dot" aria-hidden="true" /><span className="nrt-status" role="timer" aria-live="off">{fmt(voice.elapsed)}</span>
+              <span className="nrt-status">Keep writing and pointing</span>
               <button type="button" className="nrt-btn" aria-pressed={!!voice.laserMode} onClick={() => voice.setLaserMode(!voice.laserMode)}
                 aria-label={voice.laserMode ? "Switch to pen" : "Switch to pointer"} data-testid="button-voice-laser">{voice.laserMode ? "Pointer on" : "Pointer"}</button>
-              <button type="button" className="nrt-btn" data-kind="rec" onClick={() => voice.stop()} aria-label="Stop recording" data-testid="button-voice-stop">Stop</button>
+              <button type="button" className="nrt-btn" data-kind="rec" onClick={() => voice.stop()} aria-label="Stop recording" data-testid="button-voice-stop">Stop and save</button>
             </>}
             {phase === "saving" && <span className="nrt-status" role="status">Saving recording...</span>}
             {phase === "unsaved" && <>
