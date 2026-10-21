@@ -4,9 +4,9 @@ import { Check } from 'lucide-react';
 // Static "Done" bar for open-ended activities that don't report progress.
 // Tapping it marks the lesson step complete (view-once) and shows the
 // completion overlay — it does NOT navigate away.
-export default function StepDoneBar({ onDone, label = 'Done', disabled = false }) {
+export default function StepDoneBar({ onDone, label = 'Done', disabled = false, inline = false }) {
   return (
-    <div className="shrink-0 flex justify-center py-2 bg-white border-t">
+    <div className={inline ? 'contents' : 'shrink-0 flex justify-center py-2 bg-white border-t'}>
       <button
         onClick={onDone}
         disabled={disabled}

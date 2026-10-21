@@ -1,4 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { fluencyContextLabel } from '@/lib/literacy/fluencyFit.mjs';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { getFluencyPreset } from '@/lib/presets';
@@ -14,7 +16,7 @@ import { Mic, Square, ArrowRight, RotateCcw, CheckCircle2, Loader2 } from 'lucid
 // Use the same full chart as FluencyTable. Optional row recordings use the
 // established picture-login reading record path, without opening legacy
 // account-only FluencyPracticeSession permissions.
-export default function FluencyPracticeStep({ onComplete, presetId, curriculumPosition, curriculumPositionOverride, curriculumContentType, studentNumber, className }) {
+export default function FluencyPracticeStep({ onComplete, presetId, curriculumPosition, curriculumPositionOverride, curriculumContentType, studentNumber, className, titleContainer = null }) {
   const [curriculumLessons, setCurriculumLessons] = useState([]);
 
   // Load lessons for sight-word curriculum building
@@ -209,45 +211,29 @@ export default function FluencyPracticeStep({ onComplete, presetId, curriculumPo
   const allDone = recordings.filter(Boolean).length >= rows.length;
 
   return (
-    <div className="relative h-full flex flex-col bg-indigo-50">
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
-        <div>
-          <h2 className="font-black text-indigo-900 text-lg leading-tight">{preset.title || 'Fluency Practice'}</h2>
-          <p className="text-xs text-gray-500">Read the whole chart. Tap a row to follow along; recording is optional.</p>
-          <p className="text-xs text-gray-500">Row recordings appear in the Spanish Reading Dashboard.</p>
-        </div>
-        <button disabled={recordings.some(Boolean) || ['recording', 'saving', 'starting', 'failed'].includes(phase)}
-          className="rounded-lg border px-3 py-1 text-sm font-bold disabled:opacity-40"
-          onClick={() => { setSeed(Date.now()); setCell(0); setSweepStartAt(''); }}>Shuffle</button>
-        {recordings.filter(Boolean).length > 0 && (
-          <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="w-4 h-4" /> {recordings.filter(Boolean).length}/{rows.length} done
-          </span>
-        )}
-      </div>
+    <div className="relative h-full min-h-0 min-w-0 overflow-hidden flex flex-col bg-indigo-50">
+      {titleContainer
+        ? createPortal(<span title={preset.title} className="text-indigo-700">{fluencyContextLabel(preset.title)}</span>, titleContainer)
+        : <h2 className="shrink-0 truncate px-2 py-1 text-sm font-black text-indigo-900">{fluencyContextLabel(preset.title) || 'Fluency Practice'}</h2>}
+      <p className="sr-only">Read the whole chart. Tap a row to follow along; recording is optional. Row recordings appear in the Spanish Reading Dashboard.</p>
 
-      <div className="flex-1 min-h-0 overflow-auto p-4">
-        <div className="relative max-w-5xl mx-auto">
-          <FluencyGrid preset={preset} seed={seed} activeCell={cell} activeRow={currentRow} sweepStartAt={sweepStartAt}
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden p-1 sm:p-2">
+        <div className="relative h-full min-h-0 max-w-5xl mx-auto">
+          <FluencyGrid preset={preset} fit seed={seed} activeCell={cell} activeRow={currentRow} sweepStartAt={sweepStartAt}
+            navigationExtra={<button disabled={recordings.some(Boolean) || ['recording', 'saving', 'starting', 'failed'].includes(phase)}
+              className="rounded-lg border bg-white px-2 py-1 text-xs font-bold disabled:opacity-40"
+              onClick={() => { setSeed(Date.now()); setCell(0); setSweepStartAt(''); }}>Shuffle</button>}
             interactive={!['recording', 'saving', 'starting', 'failed'].includes(phase)}
             onSelectCell={index => { setCell(index); setCurrentRow(Math.floor(index / preset.cols)); setSweepStartAt(''); setPhase('idle'); }}
             onPlayRow={index => { setCurrentRow(index); setCell(index * preset.cols); setSweepStartAt(new Date().toISOString()); setPhase('idle'); }} />
           <FluencyInkCanvas ref={inkRef} active={phase === 'recording'} />
         </div>
 
-        {recordings[currentRow]?.audio_url && phase !== 'recording' && (
-          <div className="max-w-4xl mx-auto mt-3 flex items-center gap-3 text-sm text-gray-600">
-            <span className="font-bold">Your row:</span>
-            <audio src={recordings[currentRow].audio_url} controls className="h-8" />
-            <span className="text-xs text-gray-400">{Math.round((recordings[currentRow].duration_ms || 0) / 1000)}s</span>
-          </div>
-        )}
-
-        {loadErr && <p className="max-w-4xl mx-auto mt-3 text-sm text-red-500">{loadErr}</p>}
-        {phase === 'failed' && recorder.audioUrl && <audio className="mx-auto mt-2" src={recorder.audioUrl} controls />}
       </div>
 
-      <div className="flex items-center justify-center gap-3 p-4 bg-white border-t">
+      <div className="shrink-0 bg-white border-t px-2 py-1.5">
+      {loadErr && <p role="alert" className="text-center text-xs text-red-600">{loadErr}</p>}
+      <div className="flex flex-wrap items-center justify-center gap-2 [&_button]:!px-3 [&_button]:!py-2 [&_button]:!text-sm [&_svg]:!h-4 [&_svg]:!w-4">
         {phase === 'starting' && <span role="status">Starting microphone…</span>}
         {phase === 'failed' && <>
           <button onClick={saveRecording} className="rounded-xl bg-indigo-600 p-3 font-bold text-white">Retry saving recording</button>
@@ -283,9 +269,15 @@ export default function FluencyPracticeStep({ onComplete, presetId, curriculumPo
             </button>
           </>
         )}
+        <StepDoneBar inline onDone={onComplete} disabled={['recording', 'saving', 'starting', 'failed'].includes(phase)} />
+        {recordings.filter(Boolean).length > 0 && <span className="text-xs font-bold text-green-700">
+          {recordings.filter(Boolean).length}/{rows.length}
+        </span>}
+        {recordings[currentRow]?.audio_url && phase !== 'recording' &&
+          <audio aria-label="Your recorded row" src={recordings[currentRow].audio_url} controls className="h-8 w-40 max-w-full" />}
+        {phase === 'failed' && recorder.audioUrl && <audio aria-label="Unsaved recording" className="h-8 w-40 max-w-full" src={recorder.audioUrl} controls />}
       </div>
-
-      {!['recording', 'saving', 'starting', 'failed'].includes(phase) && <StepDoneBar onDone={onComplete} />}
+      </div>
     </div>
   );
 }

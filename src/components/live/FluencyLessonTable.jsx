@@ -57,8 +57,8 @@ function TeacherTable({ step, stepIndex, sessionId }) {
   if (vocabulary.error) return <div role="alert" className="p-6">Could not load book vocabulary. <button onClick={vocabulary.retry}>Retry</button></div>;
   if (vocabulary.loading) return <p className="p-6">Loading book vocabulary…</p>;
   if (!preset?.content?.length) return <p className="p-6 text-center text-slate-400">No decodable content is available yet. Review book text or edit this step's vocabulary.</p>;
-  return <div className="w-full p-3">
-    <div className="flex justify-between items-center gap-3 mb-3 text-white">
+  return <div className="flex h-full min-h-0 w-full flex-col p-2">
+    <div className="flex shrink-0 justify-between items-center gap-2 mb-1 text-white">
       <strong>{preset.title || 'Fluency Table'}</strong>
       <button className="rounded-lg border px-3 py-2" onClick={() => setControl({ seed: Date.now(), active_cell: 0, active_row: 0, sweep_start_at: '' })}>Shuffle</button>
     </div>
@@ -66,10 +66,10 @@ function TeacherTable({ step, stepIndex, sessionId }) {
       Students have not confirmed the latest table controls.
       <button className="underline ml-2" onClick={() => last.current && writer.enqueue(last.current)}>Retry sync</button>
     </div>}
-    <FluencyGrid preset={preset} seed={control.seed} activeCell={control.active_cell}
+    <div className="min-h-0 flex-1"><FluencyGrid fit preset={preset} seed={control.seed} activeCell={control.active_cell}
       activeRow={control.active_row} sweepStartAt={control.sweep_start_at}
       onSelectCell={index => setControl(c => ({ ...c, active_cell: index, sweep_start_at: '' }))}
-      onPlayRow={row => setControl(c => ({ ...c, active_cell: row * preset.cols, active_row: row, sweep_start_at: new Date().toISOString() }))} />
+      onPlayRow={row => setControl(c => ({ ...c, active_cell: row * preset.cols, active_row: row, sweep_start_at: new Date().toISOString() }))} /></div>
   </div>;
 }
 
@@ -79,7 +79,7 @@ export function FluencyLessonTeacher(props) {
 
 export function FluencyLessonMirror({ step, stepIndex, broadcast }) {
   if (!matchingFluency(broadcast, step, stepIndex)) return <p className="p-6 text-center text-slate-400">Waiting for your teacher's fluency table…</p>;
-  return <div className="p-3"><FluencyGrid preset={broadcast.preset} seed={broadcast.seed}
+  return <div className="h-full min-h-0 p-2"><FluencyGrid fit preset={broadcast.preset} seed={broadcast.seed}
     activeCell={broadcast.active_cell ?? 0} activeRow={broadcast.active_row ?? 0}
     sweepStartAt={broadcast.sweep_start_at} interactive={false} /></div>;
 }

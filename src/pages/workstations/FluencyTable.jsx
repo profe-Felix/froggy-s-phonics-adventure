@@ -244,8 +244,8 @@ function FluencySessionTable() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#fafbff', fontFamily: "'Andika', system-ui, sans-serif" }}>
-      <div className="flex items-center gap-3 p-3 bg-white border-b sticky top-0 z-20 flex-wrap">
+    <div className="h-[100dvh] min-h-0 overflow-hidden flex flex-col" style={{ background: '#fafbff', fontFamily: "'Andika', system-ui, sans-serif" }}>
+      <div className="flex shrink-0 items-center gap-2 p-2 bg-white border-b z-20 flex-wrap">
         <BackButton onClick={() => window.history.back()} />
         <h1 className="font-bold text-lg mr-2">{preset.title}</h1>
         <span className="px-3 py-1 rounded-lg bg-indigo-100 text-indigo-700 font-bold tracking-widest">{session.code}</span>
@@ -264,12 +264,13 @@ function FluencySessionTable() {
         )}
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="min-h-0 flex-1 flex flex-col p-1 sm:p-2">
         {syncError && <div role="alert" className="text-amber-800 bg-amber-50 p-2">
           The latest highlight could not sync.
           {isTeacher && <button className="underline ml-2" onClick={() => pendingPatch.current && writer.enqueue(pendingPatch.current)}>Retry sync</button>}
         </div>}
         <FluencyGrid
+          fit
           preset={preset}
           seed={session.seed}
           activeRow={session.active_row}

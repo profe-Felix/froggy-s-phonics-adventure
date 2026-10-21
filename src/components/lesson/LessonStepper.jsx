@@ -28,6 +28,7 @@ export default function LessonStepper({
   const [stepIdx, setStepIdx] = useState(0);
   const [viewMode, setViewMode] = useState('overview');
   const [bookGoalContainer, setBookGoalContainer] = useState(null);
+  const [fluencyTitleContainer, setFluencyTitleContainer] = useState(null);
   const activitySaveRef = useRef(null);
   const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
   const leaveTaskRef = useRef(null);
@@ -285,18 +286,25 @@ export default function LessonStepper({
     return leaveActivity();
   };
   const step = cur?.step;
+  const compactHeader = ['book_reading', 'fluency'].includes(step?.mode);
 
   return (
-    <div className="relative h-screen flex flex-col bg-[#dae2f3]">
+    <div className="relative h-screen flex flex-col bg-[#dae2f3]" style={compactHeader ? { height: '100dvh' } : undefined}>
       {/* Books already display their title in the reader. Share one compact
           row between the lesson exit and its completion/recording status. */}
       <div data-book-step-header={step?.mode === 'book_reading' ? '' : undefined}
-        className={`flex items-center justify-between z-30 shrink-0 ${step?.mode === 'book_reading' ? 'h-10 px-2 gap-2' : 'px-4 py-3'}`}>
+        className={`flex items-center justify-between z-30 shrink-0 ${compactHeader ? 'h-10 px-2 gap-2' : 'px-4 py-3'}`}>
         <button type="button" aria-label="Back to lesson activities" disabled={leaving} onClick={() => { void leaveActivity(); }} className="w-9 h-9 shrink-0 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
           <X className="w-5 h-5" />
         </button>
-        {step?.mode === 'book_reading'
-          ? <div ref={setBookGoalContainer} className="flex min-w-0 flex-1 justify-end" />
+        {compactHeader
+          ? <>
+            {step?.mode === 'fluency' && <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-bold" style={{ color: NAVY }}>
+              <span className="min-w-0 truncate">{step?.title || 'Fluidez'}</span>
+              <span ref={setFluencyTitleContainer} className="min-w-0 max-w-[45%] shrink-0 truncate" />
+            </div>}
+            <div ref={setBookGoalContainer} className={`flex min-w-0 justify-end ${step?.mode === 'book_reading' ? 'flex-1' : 'max-w-[35%]'}`} />
+          </>
           : <>
             <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
               {step?.title || lesson?.title}
@@ -326,7 +334,8 @@ export default function LessonStepper({
           onStudentPatch={onStudentPatch}
           onBack={() => leaveActivity('path')}
           stepperMode
-          goalContainer={step?.mode === 'book_reading' ? bookGoalContainer : null}
+          goalContainer={compactHeader ? bookGoalContainer : null}
+          activityTitleContainer={step?.mode === 'fluency' ? fluencyTitleContainer : null}
           onNext={goNext}
           isLast={isLast}
         />

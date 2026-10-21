@@ -1,18 +1,44 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { buildFluencyCells, onlyO, fluencyArrow } from '@/lib/literacy/fluencyDisplay.mjs';
+import { fluencyFitLayout, fluencyFitFont } from '@/lib/literacy/fluencyFit.mjs';
 
 // FluencyGrid — renders the shared table as rows, each with a play triangle.
 // The sweep is driven locally from the shared `sweepStartAt` timestamp so every
 // participant's highlight advances in sync without per-cell writes.
 
-export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt, onPlayRow, activeCell, onSelectCell, interactive = true }) {
+export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt, onPlayRow, activeCell, onSelectCell, interactive = true, fit = false, navigationExtra = null }) {
+  const viewportRef = useRef(null);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [fontVersion, setFontVersion] = useState(0);
+  useEffect(() => {
+    if (!fit || !viewportRef.current) return;
+    const element = viewportRef.current;
+    const measure = () => {
+      const { width, height } = element.getBoundingClientRect();
+      setViewport(old => old.width === width && old.height === height ? old : { width, height });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    let alive = true;
+    document.fonts?.ready.then(() => { if (alive) setFontVersion(n => n + 1); });
+    return () => { alive = false; observer.disconnect(); };
+  }, [fit]);
   const grid = useMemo(() => buildFluencyCells(preset, seed), [preset, seed]);
+  const textWidths = useMemo(() => {
+    if (!fit || typeof document === 'undefined') return new Map();
+    const context = document.createElement('canvas').getContext('2d');
+    if (!context) return new Map();
+    context.font = `700 100px ${viewportRef.current ? getComputedStyle(viewportRef.current).fontFamily : 'Andika, sans-serif'}`;
+    return new Map([...new Set(grid)].map(text => [text, context.measureText(text).width / 100]));
+  }, [fit, grid, fontVersion]);
 
   const rows = useMemo(() => {
     const r = [];
     for (let i = 0; i < grid.length; i += preset.cols) r.push(grid.slice(i, i + preset.cols));
     return r;
   }, [grid, preset.cols]);
+  const layout = fluencyFitLayout({ ...viewport, rows: rows.length, cols: preset.cols });
 
   const [sweepIdx, setSweepIdx] = useState(-1);
   const [manualIndex, setManualIndex] = useState(0);
@@ -61,25 +87,30 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
   }, [sweepStartAt, activeRow]);
 
   return (
-    <div className="flex flex-col gap-2 w-full max-w-5xl mx-auto">
-      <div className="flex items-center justify-center gap-3">
+    <div ref={viewportRef} data-fluency-fit={fit ? '' : undefined}
+      className={`flex flex-col w-full max-w-5xl mx-auto ${fit ? 'h-full min-h-0 min-w-0 gap-1' : 'gap-2'}`}>
+      <div className={`flex shrink-0 items-center justify-center ${fit ? 'h-8 gap-1 text-xs' : 'gap-3'}`}>
         <button aria-label="Previous item" disabled={!interactive || !grid.length || selected <= 0}
-          className="border bg-white rounded-lg px-4 py-2 font-bold disabled:opacity-40"
-          onClick={() => select(Math.max(0, selected - 1))}>← Previous</button>
+          className={`border bg-white rounded-lg font-bold disabled:opacity-40 ${fit ? 'px-2 py-1' : 'px-4 py-2'}`}
+          onClick={() => select(Math.max(0, selected - 1))}>← <span className={fit ? 'hidden sm:inline' : ''}>Previous</span></button>
         <span aria-live="polite">{grid.length ? (sweepStartAt ? Math.max(0, sweepIdx) : selected) + 1 : 0} / {grid.length}</span>
         <button aria-label="Next item" disabled={!interactive || !grid.length || selected >= grid.length - 1}
-          className="border bg-white rounded-lg px-4 py-2 font-bold disabled:opacity-40"
-          onClick={() => select(Math.min(grid.length - 1, selected + 1))}>Next →</button>
+          className={`border bg-white rounded-lg font-bold disabled:opacity-40 ${fit ? 'px-2 py-1' : 'px-4 py-2'}`}
+          onClick={() => select(Math.min(grid.length - 1, selected + 1))}><span className={fit ? 'hidden sm:inline' : ''}>Next</span> →</button>
+        {navigationExtra}
       </div>
       {onlyO(preset.content) && <p role="status" className="text-center text-slate-600 p-4">
         No table yet: only “o” has been introduced. Choose a later lesson with more letters.
       </p>}
+      <div className={fit ? 'grid min-h-0 flex-1 gap-1' : 'flex flex-col gap-2'}
+        style={fit ? { gridTemplateRows: `repeat(${Math.max(1, rows.length)}, minmax(0, 1fr))` } : undefined}>
       {rows.map((row, r) => (
-        <div key={r} className="flex items-stretch gap-2">
+        <div key={r} className={fit ? 'grid min-h-0 min-w-0 gap-1' : 'flex items-stretch gap-2'}
+          style={fit ? { gridTemplateColumns: `${layout.playWidth}px repeat(${preset.cols}, minmax(0, 1fr))` } : undefined}>
           <button
             disabled={!interactive || !onPlayRow}
             onClick={() => onPlayRow?.(r)}
-            className="shrink-0 w-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition flex items-center justify-center"
+            className={`shrink-0 min-h-0 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition flex items-center justify-center ${fit ? 'w-full' : 'w-11'}`}
             aria-label={`Play row ${r + 1}`}
             title={`Read row ${r + 1}`}
           >
@@ -103,8 +134,8 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
                 aria-label={`Box ${idx + 1}: ${text}`}
                 aria-disabled={!interactive}
                 onClick={() => select(idx)}
-                className="relative rounded-xl border bg-white flex items-center justify-center overflow-hidden select-none flex-1"
-                style={{ aspectRatio: '3 / 2', fontSize: 'clamp(1.1rem,2.2vw,1.9rem)', fontWeight: 700 }}
+                className="relative min-h-0 min-w-0 rounded-xl border bg-white flex items-center justify-center overflow-hidden select-none flex-1"
+                style={{ aspectRatio: fit ? undefined : '3 / 2', fontSize: fit ? fluencyFitFont(layout, text, textWidths.get(text)) : 'clamp(1.1rem,2.2vw,1.9rem)', fontWeight: 700 }}
               >
                 <span className="relative z-10 text-slate-800">{text}</span>
                 <div
@@ -120,6 +151,7 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
           })}
         </div>
       ))}
+      </div>
     </div>
   );
 }

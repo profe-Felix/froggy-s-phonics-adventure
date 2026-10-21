@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 
 const source = path => readFile(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
-test('only book lesson steps use the compact shared exit/status row', async () => {
+test('book and fluency lesson steps share a compact exit/status row', async () => {
   const stepper = await source('components/lesson/LessonStepper.jsx');
-  assert.match(stepper, /step\?\.mode === 'book_reading' \? 'h-10 px-2 gap-2' : 'px-4 py-3'/);
+  assert.match(stepper, /\['book_reading', 'fluency'\]\.includes\(step\?\.mode\)/);
+  assert.match(stepper, /compactHeader \? 'h-10 px-2 gap-2' : 'px-4 py-3'/);
   assert.match(stepper, /ref=\{setBookGoalContainer\}/);
-  assert.match(stepper, /goalContainer=\{step\?\.mode === 'book_reading' \? bookGoalContainer : null\}/);
+  assert.match(stepper, /goalContainer=\{compactHeader \? bookGoalContainer : null\}/);
   assert.match(stepper, /disabled=\{leaving\} onClick=\{\(\) => \{ void leaveActivity\(\); \}\}/);
 });
 

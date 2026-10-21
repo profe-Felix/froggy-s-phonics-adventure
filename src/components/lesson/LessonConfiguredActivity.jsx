@@ -79,7 +79,7 @@ function lessonNotebookContext({ liveSession, stepIndex, step, selectedStudent, 
   };
 }
 
-export default function LessonConfiguredActivity({step,onComplete,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId,liveSession}) {
+export default function LessonConfiguredActivity({step,onComplete,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId,liveSession,activityTitleContainer}) {
   const config=step?.config||{};
   const student={studentNumber,className};
   const curriculum={presetId:config.preset,curriculumPosition:config.curriculumPosition};
@@ -97,7 +97,7 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'fluency': return liveSession?.active && stepIndex === (liveSession.current_step ?? 0)
       ? <FluencyLessonStudent step={step} stepIndex={stepIndex} liveSession={liveSession} />
       : config.bookVocabulary ? <BookVocabularyStep config={config} onComplete={onComplete} />
-      : <FluencyPracticeStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;
+      : <FluencyPracticeStep onComplete={onComplete} titleContainer={activityTitleContainer} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;
     case 'video': return <VideoStep onComplete={onComplete} videoUrl={config.videoUrl} title={step.title}/>;
     case 'soundwall': return <SoundWallStep onComplete={onComplete} stepConfig={{...config,curriculumKey:config.curriculumKey||''}}/>;
     case 'google_slides': return <GoogleSlidesStep onComplete={onComplete} stepConfig={config} title={step.title}/>;
