@@ -1,15 +1,13 @@
 import { bookBodyText, cleanPracticeWords } from '@/lib/literacy/dailyFluency.mjs';
 import { base44 } from '@/api/base44Client';
+import { sourceSignature } from '../../../base44/shared/bookMetadata.mjs';
 
 async function readScannedBook(book) {
   if (!book.pdf_url) return { words: [], warning: `${book.title}: no readable book text yet; add text or enter words manually.` };
-  const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
-    file_url: book.pdf_url,
-    json_schema: { type: 'object', properties: { words: { type: 'array', items: { type: 'string' },
-      description: 'Transcribe only Spanish words printed in the story pages. Exclude cover, author names, publisher, copyright and credits. Do not invent, translate or add words.' } }, required: ['words'] },
-  });
-  if (result.status && result.status !== 'success') throw new Error('Book text extraction failed.');
-  const words = cleanPracticeWords(result.output?.words || result.words || []);
+  const response = await base44.functions.invoke('scanBookVocabulary', {
+    action: 'ocr_book', book_id: book.id, source_signature: sourceSignature(book) });
+  if (response.data?.ok !== true) throw new Error('Book text extraction failed.');
+  const words = cleanPracticeWords(response.data.words || []);
   return { words, warning: words.length ? `${book.title}: OCR vocabulary is available; review it for transcription errors.`
     : `${book.title}: no readable text was found; enter practice words manually.` };
 }

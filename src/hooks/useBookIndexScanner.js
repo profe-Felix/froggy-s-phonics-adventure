@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { loadBookCatalog } from '@/lib/book/catalog';
 import { readFluencyBook } from '@/lib/book/fluencyText';
-import { indexVocabulary, introductionBooks, sourceSignature } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { indexVocabulary, sourceSignature } from '@/lib/literacy/pathwayCurriculum.mjs';
 
 // Only mounted on teacher surfaces. Students read the shared prepared index.
 let running = null;
@@ -23,29 +23,18 @@ async function scanLibrary(cache, report, force) {
     }
     report({ busy: true, scanned, title: book.title, warnings });
     const result = await readFluencyBook(book);
-    const payload = { book_id: book.id, source_signature: sourceSignature(book),
-      entries: indexVocabulary(result.words), warning: result.warning, scanned_at: new Date().toISOString() };
-    if (prior?.id) await base44.entities.BookPracticeIndex.update(prior.id, payload);
-    else await base44.entities.BookPracticeIndex.create(payload);
+    const saved = await base44.functions.invoke('scanBookVocabulary', {
+      action: 'save_index', book_id: book.id, source_signature: sourceSignature(book),
+      entries: indexVocabulary(result.words), warning: result.warning || '',
+      expected_index_id: prior?.id || '', expected_index_updated_at: prior?.updated_date || '' });
+    if (saved.data?.ok !== true) throw Error('The vocabulary save was not confirmed.');
     if (result.warning) warnings.push(result.warning);
     scanned++;
   }
   // Add newly introduced DF readers without regenerating any teacher-edited steps.
-  const lessons = await base44.entities.Lesson.list('-created_date', 1000);
-  for (const lesson of lessons.filter(l => l.language === 'es' && l.lesson_number <= 36)) {
-    let changed = false;
-    const days = (lesson.daily_lessons || []).map(day => {
-      const p = { moduleNumber: Number(day.module_number), lessonNumber: Number(day.curriculum_lesson_number) };
-      if (!p.moduleNumber || !p.lessonNumber || !introductionBooks(books, p).length ||
-        (day.steps || []).some(s => s.mode === 'book_reading')) return day;
-      changed = true;
-      return { ...day, steps: [...(day.steps || []), { mode: 'book_reading', title: 'Lectura DF', emoji: '', color: 'orange',
-        live_scope: 'both', access_scope: 'both', completion: { type: 'view', target: 1 },
-        config: { autoDfBooks: true, generatedCurriculum: true,
-          curriculumPosition: { module_number: p.moduleNumber, curriculum_lesson_number: p.lessonNumber } } }] };
-    });
-    if (changed) await base44.entities.Lesson.update(lesson.id, { daily_lessons: days });
-  }
+  const linked = await base44.functions.invoke('scanBookVocabulary', { action: 'sync_readers' });
+  if (linked.data?.ok !== true) throw Error('Reader links were not confirmed.');
+  if (linked.data.deferred) warnings.push('Recently edited reader links were left unchanged; the next scan will retry them.');
   await Promise.all(['curriculum-book-index', 'curriculum-book-catalog', 'all-lessons', 'lessons']
     .map(key => cache.invalidateQueries({ queryKey: [key] })));
   return { busy: false, scanned, title: '', warnings, error: '' };

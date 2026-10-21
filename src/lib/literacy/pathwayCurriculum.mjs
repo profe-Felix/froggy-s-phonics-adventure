@@ -62,11 +62,7 @@ export function introductionBooks(books, position) {
       tags.length > 0 && Number(tags[0].slice(1)) === position.lessonNumber;
   });
 }
-export function sourceSignature(book) {
-  // A metadata-only retag also invalidates the index, without altering edited lists.
-  return JSON.stringify([book.id, book.updated_date, book.pdf_url, book.subject, book.module, book.lessons, book.lesson,
-    (book.pages || []).map(p => [p.page_number, p.html_url, p.text, p.page_text, p.words])]);
-}
+export { sourceSignature } from '../../../base44/shared/bookMetadata.mjs';
 export function indexVocabulary(values) {
   return cleanPracticeWords(values).map(word => ({ word, syllables: syllabifyEs(word) }));
 }
