@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { ArrowLeft, Check, Info, Play } from 'lucide-react';
 
 // Lesson preview shown when a level puck is tapped (both parent and student
@@ -436,7 +437,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
             ) : (
               <span className="lp-play-icon"><Play size={16} strokeWidth={0} fill="white" /></span>
             )}
-            Lesson {num}{isCompleted ? ' Complete!' : ''}
+            {lesson.language === 'es' ? pathwayLabel(num) : `Lesson ${num}`}{isCompleted ? ' Complete!' : ''}
           </h1>
           <p className="lp-subtitle">{body}</p>
         </div>

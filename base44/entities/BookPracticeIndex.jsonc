@@ -1,0 +1,18 @@
+{
+  "name": "BookPracticeIndex",
+  "type": "object",
+  "properties": {
+    "book_id": { "type": "string" },
+    "source_signature": { "type": "string" },
+    "entries": { "type": "array", "items": { "type": "object" } },
+    "warning": { "type": "string" },
+    "scanned_at": { "type": "string" }
+  },
+  "required": ["book_id"],
+  "rls": {
+    "read": null,
+    "create": { "$or": [{ "user_condition": { "role": "admin" } }, { "user_condition": { "role": "user" } }] },
+    "update": { "$or": [{ "user_condition": { "role": "admin" } }, { "user_condition": { "role": "user" } }] },
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}

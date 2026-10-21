@@ -26,7 +26,20 @@ import SubstepEditor from '@/components/spanishReading/SubstepEditor';
 import { useWordBuilderPresets } from '@/hooks/useWordBuilderPresets';
 import WordBuilderPresetEditor from '@/components/wordbuilder/WordBuilderPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
+import BookVocabularyLibrary from '@/components/lesson/BookVocabularyLibrary';
+import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useClassNames } from '@/hooks/useClassNames';
+
+function CurriculumListInput({ items = [], onChange, multiline = false }) {
+  const [draft, setDraft] = useState(items.join(', '));
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(items.join(', ')); }, [items.join('\n')]);
+  const props = { value: draft, className: 'mt-1 w-full rounded-lg border p-2 text-sm',
+    onFocus: () => { focused.current = true; },
+    onChange: e => setDraft(e.target.value),
+    onBlur: () => { focused.current = false; onChange(draft.split(/[,\n]+/).map(w => w.trim()).filter(Boolean)); } };
+  return multiline ? <textarea {...props} rows={3} /> : <input {...props} />;
+}
 
 export function blankStep(mode = 'letter_sounds') {
   const m = MODE_BY_VALUE[mode];
@@ -675,22 +688,39 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
           </label>
         </div>
+      ) : step.mode === 'letter_formation' ? (
+        <label className="block rounded-xl bg-white/60 p-3 text-xs font-bold text-gray-600">Target letters (both cases shown)
+          <CurriculumListInput items={step.config?.letters || []}
+            onChange={letters => update({ config: { ...step.config, letters } })} />
+        </label>
       ) : step.mode === 'fluency' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
           <label className="text-xs text-gray-600 font-bold">Content source
-            <select value={step.config?.curriculumContentType || ''}
-              onChange={e => update({ config: { ...step.config, curriculumContentType: e.target.value } })}
+            <select value={step.config?.bookVocabulary ? `book_${step.config.bookVocabulary}` : step.config?.curriculumContentType || ''}
+              onChange={e => update({ config: { ...step.config,
+                bookVocabulary: e.target.value.startsWith('book_') ? e.target.value.slice(5) : '',
+                curriculumContentType: e.target.value.startsWith('book_') ? '' : e.target.value } })}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
               <option value="">Custom preset (pick below)</option>
               <option value="letters">📖 Curriculum: Letters / phonemes</option>
               <option value="syllables">🔤 Curriculum: Syllables</option>
               <option value="sight_words">💙 Curriculum: Sight words</option>
+              <option value="sight_words_all">Curriculum: All introduced HFW</option>
+              <option value="book_words">Books: Decodable words</option>
+              <option value="book_syllables">Books: Decodable syllables</option>
             </select>
           </label>
           <p className="text-[10px] text-gray-400">
             Curriculum mode auto-builds the chart from all graphemes/words introduced through this lesson, with more recent content appearing more often (spiral review).
           </p>
-          {step.config?.curriculumContentType ? (
+          {step.config?.bookVocabulary && <>
+            <label className="text-xs font-bold text-gray-600"><input type="checkbox" checked={step.config?.vocabularyOverride === true}
+              onChange={e => update({ config: { ...step.config, vocabularyOverride: e.target.checked } })} /> Use my edited list instead of the live book bank</label>
+            {step.config?.vocabularyOverride && <CurriculumListInput multiline items={step.config?.vocabularyItems || []}
+              onChange={vocabularyItems => update({ config: { ...step.config, vocabularyItems } })} />}
+            <p className="text-xs text-gray-500">Automatic lists refresh from DF, LV and library books; HFW are excluded. An edited list stays exactly as saved.</p>
+          </>}
+          {step.config?.curriculumContentType || step.config?.bookVocabulary ? (
             <label className="text-xs text-gray-600 font-bold">Curriculum position override (blank = daily lesson M#.L#)
               <input value={step.config?.curriculumPositionOverride || ''}
                 onChange={e => update({ config: { ...step.config, curriculumPositionOverride: e.target.value } })}
@@ -1019,6 +1049,8 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
 
       {step.mode === 'book_reading' && (
         <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
+          <label className="text-xs font-bold text-gray-600"><input type="checkbox" checked={!!step.config?.autoDfBooks}
+            onChange={e => update({ config: { ...step.config, autoDfBooks: e.target.checked, ...(e.target.checked ? { bookId: '' } : {}) } })} /> Automatically open DF books first introduced on this day</label>
           <label className="text-xs text-gray-600 font-bold">
             Book
             <BookPicker
@@ -1034,6 +1066,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
                     ...step.config,
                     bookId,
                     bookTitle,
+                    autoDfBooks: false,
                     // A recording requirement cannot work without
                     // a specific assigned book.
                     ...(!bookId
@@ -2012,6 +2045,7 @@ export default function LessonEditor() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white p-4">
       <div className="max-w-3xl mx-auto">
+        <BookVocabularyLibrary />
         <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-black text-gray-800">📚 Weekly Lesson Planner</h1>
@@ -2057,7 +2091,7 @@ export default function LessonEditor() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold text-indigo-500">
-                        {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : `Week ${l.lesson_number || ''}`}
+                        {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : l.language === 'es' ? pathwayLabel(l.lesson_number) : `Week ${l.lesson_number || ''}`}
                       </p>
                       <h3 className="text-lg font-black text-gray-800">{l.title}</h3>
                       <p className="text-xs text-gray-500">{l.subtitle}</p>

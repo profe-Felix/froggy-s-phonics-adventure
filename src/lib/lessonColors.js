@@ -18,6 +18,7 @@ export const COLOR_KEYS = Object.keys(STEP_COLORS);
 // Each mode maps to an existing activity component. defaultCompletion drives the
 // editor's sensible default when a teacher picks the mode.
 export const MODE_OPTIONS = [
+  { value: 'letter_formation', label: 'Letter Formation (both cases)', emoji: '', defaultCompletion: 'view', defaultTarget: 1 },
   { value: 'letter_sounds',        label: 'Letter Sounds',      emoji: '🔤', defaultCompletion: 'mastery', defaultTarget: 3 },
   { value: 'sight_words_easy',      label: 'Sight Words',       emoji: '👁️', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'sight_words_spelling',  label: 'Spell Sight Words', emoji: '✏️', defaultCompletion: 'mastery', defaultTarget: 3 },

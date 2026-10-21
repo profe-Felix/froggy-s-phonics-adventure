@@ -1,4 +1,5 @@
 import BookReadingStep from '@/components/lesson/modes/BookReadingStep';
+import AutoDfReadingStep from '@/components/lesson/modes/AutoDfReadingStep';
 import LetterSortStep from '@/components/lesson/modes/LetterSortStep';
 import PowerfulWordStep from '@/components/lesson/modes/PowerfulWordStep';
 import SyllableTrainStep from '@/components/lesson/modes/SyllableTrainStep';
@@ -6,6 +7,8 @@ import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
 import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
 import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
 import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
+import BookVocabularyStep from '@/components/lesson/modes/BookVocabularyStep';
+import LetterFormationStep from '@/components/lesson/modes/LetterFormationStep';
 import VideoStep from '@/components/lesson/modes/VideoStep';
 import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
@@ -81,7 +84,10 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
   const student={studentNumber,className};
   const curriculum={presetId:config.preset,curriculumPosition:config.curriculumPosition};
   switch(step.mode) {
-    case 'book_reading': return <BookReadingStep stepConfig={config} {...student} onBack={wrappedBack} onRecordingSaved={handleBookRecordingSaved} onRequiredPagesLoaded={setCatalogRecordingPages} embedded={embeddedMode||stepperMode}/>;
+    case 'letter_formation': return <LetterFormationStep letters={config.letters || []} waypointSnapshot={config.waypointSnapshot} onComplete={onComplete} />;
+    case 'book_reading': return config.autoDfBooks
+      ? <AutoDfReadingStep config={config} {...student} onBack={wrappedBack} onComplete={onComplete} onRecordingSaved={handleBookRecordingSaved} embedded={embeddedMode||stepperMode} />
+      : <BookReadingStep stepConfig={config} {...student} onBack={wrappedBack} onRecordingSaved={handleBookRecordingSaved} onRequiredPagesLoaded={setCatalogRecordingPages} embedded={embeddedMode||stepperMode}/>;
     case 'letter_sort': return <LetterSortStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} {...student}/>;
     case 'powerful_word': return <PowerfulWordStep onComplete={onComplete} presetId={config.preset}/>;
     case 'syllable_train': return <SyllableTrainStep onComplete={onComplete}/>;
@@ -90,6 +96,7 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'word_builder': return <WordBuilderStep onComplete={onComplete} {...student} studentData={activityStudentData} onStudentPatch={onStudentPatch} {...curriculum}/>;
     case 'fluency': return liveSession?.active && stepIndex === (liveSession.current_step ?? 0)
       ? <FluencyLessonStudent step={step} stepIndex={stepIndex} liveSession={liveSession} />
+      : config.bookVocabulary ? <BookVocabularyStep config={config} onComplete={onComplete} />
       : <FluencyPracticeStep onComplete={onComplete} {...curriculum} curriculumPositionOverride={config.curriculumPositionOverride} curriculumContentType={config.curriculumContentType} {...student}/>;
     case 'video': return <VideoStep onComplete={onComplete} videoUrl={config.videoUrl} title={step.title}/>;
     case 'soundwall': return <SoundWallStep onComplete={onComplete} stepConfig={{...config,curriculumKey:config.curriculumKey||''}}/>;

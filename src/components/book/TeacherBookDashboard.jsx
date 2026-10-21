@@ -14,6 +14,7 @@ import HtmlBookReview from './HtmlBookReview';
 import { parseHtmlPage } from '@/lib/htmlBookParser';
 import LessonChecklist from './LessonChecklist';
 import { bookLessonTags, lessonTagUpdate, updateBookMetadata } from '@/lib/book/lessonTags.mjs';
+import BookVocabularyLibrary from '@/components/lesson/BookVocabularyLibrary';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
@@ -643,6 +644,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#042f2e', color: 'white' }}>
+      <div className="px-4 pt-3 text-gray-800"><BookVocabularyLibrary /></div>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
         <BackButton tone="teal" onClick={onBack} />
         <h1 className="text-lg font-black text-white flex-1">📚 Book Reading</h1>

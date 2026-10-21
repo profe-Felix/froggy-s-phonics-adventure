@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { fetchLessons } from '@/lib/lessonsLoader';
@@ -200,10 +201,10 @@ export default function TeacherLevelPath({ className, onOpenLesson, activeModule
                   className="font-black"
                   style={{
                     color: clickable ? '#311B92' : '#9ca3af',
-                    fontSize: dotFont,
+                    fontSize: lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont,
                   }}
                 >
-                  {n}
+                  {lesson?.language === 'es' ? pathwayLabel(n) : n}
                 </span>
               </button>
             );

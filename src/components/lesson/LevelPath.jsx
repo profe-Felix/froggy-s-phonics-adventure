@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
@@ -346,12 +347,12 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
             >
               {locked && !editing ? (
                 <>
-                  <span className="font-black text-gray-400" style={{ fontSize: dotFont }}>{n}</span>
+                  <span className="font-black text-gray-400" style={{ fontSize: lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont }}>{lesson?.language === 'es' ? pathwayLabel(n) : n}</span>
                   <Lock className="absolute top-0.5 right-0.5 text-gray-400/80" style={{ width: lockSize, height: lockSize }} />
                 </>
               ) : (
-                <span className="font-black" style={{ color: done ? '#ffffff' : '#311B92', fontSize: dotFont }}>
-                  {n}
+                <span className="font-black" style={{ color: done ? '#ffffff' : '#311B92', fontSize: lesson?.language === 'es' ? Math.min(dotFont, dotSize * .21) : dotFont }}>
+                  {lesson?.language === 'es' ? pathwayLabel(n) : n}
                 </span>
               )}
               {done && !editing && (

@@ -7,7 +7,8 @@ import LessonStepper from './LessonStepper';
 import SideQuests from './SideQuests';
 import PrizeWheel from '@/components/game/PrizeWheel';
 import { useClassColors } from '@/hooks/useClassColors';
-import { BookOpen, PlayCircle } from 'lucide-react';
+import { BookOpen, PlayCircle, SpellCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { fetchLessons } from '@/lib/lessonsLoader';
 
 const LESSON_KEY = 'gamehome_open_lesson';
@@ -202,6 +203,14 @@ export default function GameHome({
                   <span className="text-sm font-bold text-indigo-800">{m.label}</span>
                 </button>
               ))}
+              <Link
+                to="/AlphabetChart"
+                data-testid="link-alphabet-chart"
+                className="rounded-3xl bg-indigo-50 border-2 border-indigo-100 p-4 flex flex-col items-center gap-2 hover:bg-indigo-100"
+              >
+                <SpellCheck className="w-10 h-10 text-indigo-700" aria-hidden="true" />
+                <span className="text-sm font-bold text-indigo-800">Abecedario</span>
+              </Link>
             </div>
           </div>
         )}

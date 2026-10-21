@@ -5,10 +5,13 @@ import { buildFluencyPreset, parseCurriculumKey } from '@/lib/literacy/curriculu
 import { fluencyScope, matchingFluency, latestFluencyWriter } from '@/lib/literacy/fluencySync.mjs';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import FluencyGrid from '@/components/workstations/FluencyGrid';
+import useBookVocabulary from '@/hooks/useBookVocabulary';
 
 function TeacherTable({ step, stepIndex, sessionId }) {
   const config = step.config || {};
+  const vocabulary = useBookVocabulary(config);
   const preset = useMemo(() => {
+    if (config.bookVocabulary) return vocabulary.preset;
     if (config.curriculumContentType) {
       const position = config.curriculumPositionOverride
         ? parseCurriculumKey(config.curriculumPositionOverride) : config.curriculumPosition;
@@ -19,7 +22,7 @@ function TeacherTable({ step, stepIndex, sessionId }) {
       }
     }
     return getFluencyPreset(config.preset);
-  }, [step]);
+  }, [step, vocabulary.preset]);
   const [control, setControl] = useState({ seed: Date.now(), active_cell: 0, active_row: 0, sweep_start_at: '' });
   const [error, setError] = useState(null);
   const [ready, setReady] = useState(false);
@@ -51,7 +54,9 @@ function TeacherTable({ step, stepIndex, sessionId }) {
   if (!ready) return <div className="p-6 text-center text-slate-400">
     {error ? <><p>Could not load the shared table.</p><button onClick={() => setReload(n => n + 1)}>Retry sync</button></> : 'Loading shared fluency table…'}
   </div>;
-  if (!preset?.content?.length) return <p className="p-6 text-center text-slate-400">No fluency content assigned. Choose a preset or a curriculum position for this step.</p>;
+  if (vocabulary.error) return <div role="alert" className="p-6">Could not load book vocabulary. <button onClick={vocabulary.retry}>Retry</button></div>;
+  if (vocabulary.loading) return <p className="p-6">Loading book vocabulary…</p>;
+  if (!preset?.content?.length) return <p className="p-6 text-center text-slate-400">No decodable content is available yet. Review book text or edit this step's vocabulary.</p>;
   return <div className="w-full p-3">
     <div className="flex justify-between items-center gap-3 mb-3 text-white">
       <strong>{preset.title || 'Fluency Table'}</strong>

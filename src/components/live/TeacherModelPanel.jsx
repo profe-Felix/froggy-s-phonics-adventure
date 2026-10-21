@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import LetterFormationStep from '@/components/lesson/modes/LetterFormationStep';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { buildActivity } from '@/lib/activities/engine';
 import { buildHuntItemsFromBank } from '@/lib/activities/huntItems';
@@ -74,6 +75,9 @@ export default function TeacherModelPanel({ step, stepIndex, send, className, le
     try { return { config: c, activity: buildActivity(c) }; } catch { return { config: c, activity: null }; }
   }, [step, PRESETS, bankItems]);
 
+  if (step?.mode === 'letter_formation') {
+    return <LetterFormationStep letters={step.config?.letters || []} waypointSnapshot={step.config?.waypointSnapshot} teacherMode />;
+  }
   if (step?.mode === 'fluency') {
     return <FluencyLessonTeacher step={step} stepIndex={stepIndex} sessionId={liveSessionId} />;
   }
