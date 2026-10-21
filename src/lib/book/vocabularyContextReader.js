@@ -1,6 +1,6 @@
 import { prepareHtmlBookDocument } from '@/components/book/htmlBookDocument';
 import { findVocabularyOccurrences, vocabularyContextParts, contextRectangles, createContextCursor } from './vocabularyContext.mjs';
-import { htmlContextImageSurfaces, htmlContextImagePlacement } from './htmlContextImages.mjs';
+import { htmlContextImageSurfaces, htmlContextImagePlacement, htmlContextNeedsImageText } from './htmlContextImages.mjs';
 
 const abortError = () => new DOMException('Preview closed', 'AbortError');
 const timed = (promise, milliseconds, message) => {
@@ -109,7 +109,7 @@ export function createVocabularyContextReader(item, catalog, onProgress) {
       }
     return chars;
   };
-  const htmlPage = async page => {
+  const htmlPage = async (page, book) => {
     const response = await timed(fetch(page.html_url, { signal }), 20000, 'The saved page took too long to download.');
     if (!response.ok) throw Error('The saved HTML page could not load.');
     const source = prepareHtmlBookDocument(await response.text());
@@ -150,7 +150,8 @@ export function createVocabularyContextReader(item, catalog, onProgress) {
       // Accessibility transcripts are offscreen, not printable text positions.
       // They can rule out an image-only page, but cannot provide highlight boxes.
       const transcript = [...doc.querySelectorAll('.text-hidden')].map(node => node.textContent).join('\n');
-      if (transcript.trim() && !findVocabularyOccurrences(transcript, item).length) return nativePage;
+      if (!htmlContextNeedsImageText({ transcript, words: page.words,
+        bookHasTextPages: book.pages.some(saved => saved.words?.length) }, item)) return nativePage;
       const surfaces = htmlContextImageSurfaces(doc);
       if (!surfaces.length) {
         if (page.image_url) return await imagePage(page.image_url);
@@ -192,7 +193,7 @@ export function createVocabularyContextReader(item, catalog, onProgress) {
   const readPage = async (book, number) => {
     if (book.book_type === 'html' || book.pages?.some(page => page.html_url)) {
       const page = book.pages[number - 1];
-      return page.html_url ? htmlPage(page) : imagePage(page.image_url);
+      return page.html_url ? htmlPage(page, book) : imagePage(page.image_url);
     }
     if (book.book_type === 'images') return imagePage(book.pages[number - 1].image_url);
     const page = await pdf.getPage(number);

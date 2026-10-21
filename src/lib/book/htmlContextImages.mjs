@@ -1,3 +1,14 @@
+import { findVocabularyOccurrences } from './vocabularyContext.mjs';
+
+export function htmlContextNeedsImageText({ transcript = '', words = [], bookHasTextPages = false }, item) {
+  // A text-indexed EPUB's uncaptioned photographs are not its reading text.
+  // Do not OCR truck labels, publisher logos, etc. before reaching the passage.
+  if (transcript.trim()) return findVocabularyOccurrences(transcript, item).length > 0;
+  const indexed = words.map(word => typeof word === 'string' ? word : word.text || '').join(' ');
+  if (indexed.trim()) return findVocabularyOccurrences(indexed, item).length > 0;
+  return !bookHasTextPages;
+}
+
 // SingleFile/EPUB exports often keep page artwork on a figure's CSS background,
 // not in an <img>. Preserve the artwork's actual layout for OCR coordinates.
 export function htmlContextImageSurfaces(doc) {

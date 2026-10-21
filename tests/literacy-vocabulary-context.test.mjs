@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { findVocabularyOccurrences as find, vocabularyContextParts, contextRectangles, createContextCursor } from '../src/lib/book/vocabularyContext.mjs';
 import { buildVocabularyReviewItems } from '../src/lib/literacy/vocabularyReview.mjs';
-import { htmlContextImageSurfaces, htmlContextImagePlacement } from '../src/lib/book/htmlContextImages.mjs';
+import { htmlContextImageSurfaces, htmlContextImagePlacement, htmlContextNeedsImageText } from '../src/lib/book/htmlContextImages.mjs';
 
 test('word context matches entire words, case insensitively, and keeps repeated occurrences', () => {
   const text = 'El silbato, los silbatos y otro SILBATO.';
@@ -144,4 +144,14 @@ test('blank and nonmatching cover pages do not block later HTML occurrences', as
   assert.match(reader, /htmlContextImageSurfaces\(doc\)/);
   assert.match(reader, /html: source.html/);
   assert.match(reader, /x: char.x \/ scale, y: char.y \/ scale/);
+});
+
+test('indexed EPUBs skip illustration-only pages, while real image text remains searchable', () => {
+  const item = { kind: 'syllable', original: 'cons', text: 'cons' };
+  assert.equal(htmlContextNeedsImageText({ transcript: '', words: [], bookHasTextPages: true }, item), false);
+  assert.equal(htmlContextNeedsImageText({ transcript: 'Lugares de mi comunidad', bookHasTextPages: true }, item), false);
+  assert.equal(htmlContextNeedsImageText({ transcript: 'Las construcciones', bookHasTextPages: true }, item), true);
+  assert.equal(htmlContextNeedsImageText({ words: [{ text: 'construcciones' }], bookHasTextPages: true }, item), true);
+  assert.equal(htmlContextNeedsImageText({ words: [{ text: 'comunidad' }], bookHasTextPages: true }, item), false);
+  assert.equal(htmlContextNeedsImageText({ words: [], bookHasTextPages: false }, item), true);
 });
