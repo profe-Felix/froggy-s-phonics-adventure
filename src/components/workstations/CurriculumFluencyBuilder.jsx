@@ -5,6 +5,7 @@ import { requestWithRetry } from '@/lib/classroomSync';
 import { buildFluencyPreset } from '@/lib/literacy/curriculumContentBuilder';
 import { latestSightWordIntroduction } from '@/lib/literacy/sightWordProgression.mjs';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { onlyO } from '@/lib/literacy/fluencyDisplay.mjs';
 
 const DAYS = [
   { key: 'monday', label: 'Monday' },
@@ -85,7 +86,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
     });
   }, [selectedDay, contentType, lessons, reviewLatest, latestIntroduction]);
 
-  const canStart = !!preset && preset.content.length > 0;
+  const canStart = !!preset && preset.content.length > 0 && !onlyO(preset.content);
 
   const handleStart = () => {
     if (!preset || !canStart) return;
@@ -188,6 +189,9 @@ export default function CurriculumFluencyBuilder({ onStart }) {
       >
         Start live session
       </button>
+      {preset && onlyO(preset.content) && <p role="status" className="text-sm text-amber-700">
+        Only “o” has been introduced. Fluency tables begin when there are more letters to practice.
+      </p>}
       {selectedDay && preset && preset.content.length === 0 && (
         <p className="text-xs text-amber-600 text-center">
           No {contentType.replace('_', ' ')} found for this lesson. Pick another day or content type.

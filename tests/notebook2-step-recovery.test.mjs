@@ -48,3 +48,16 @@ test('missing live controls cannot indefinitely hide a prepared V3 worksheet', a
   assert.match(source, /Retry live controls/);
   assert.match(source, /readOnly=\{!!exiting \|\| !live.live\}/);
 });
+
+test('V2/V3 teacher lesson steps render their dashboard directly, never in a blocked Base44 frame', async () => {
+  const parent = await readFile(new URL('../src/pages/LiveLesson.jsx', import.meta.url), 'utf8');
+  assert.match(parent, /<NotebookLessonTeacher step=\{currentStep\}/);
+  assert.match(parent, /dashboard=\{showDashboard\}/);
+  assert.doesNotMatch(parent, /<iframe title="Base44-only notebook teacher controls"/);
+  const native = await readFile(new URL('../src/pages/LiveLesson2.jsx', import.meta.url), 'utf8');
+  assert.match(native, /export function NotebookLessonTeacher/);
+  assert.match(native, /targetStudents=\{session.target_students\}/);
+  assert.match(native, /school_year: schoolYear/);
+  assert.match(native, /dashboard \? "Student work" : "Worksheet"/);
+  assert.match(native, /<NativeThumbnail/);
+});

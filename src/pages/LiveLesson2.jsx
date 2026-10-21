@@ -28,20 +28,21 @@ export function dedupRoster(records) {
   return Array.from({ length: 30 }, (_, i) => seen.get(i + 1) || { student_number: i + 1, name: "", photo_url: "" });
 }
 
-function useRoster(className) {
+function useRoster(className, schoolYear) {
   return useQuery({
-    queryKey: ["nb-native-roster", className, ACTIVE_SCHOOL_YEAR],
-    queryFn: () => base44.entities.Student.filter({ class_name: className, school_year: ACTIVE_SCHOOL_YEAR }, "-updated_date", 500),
+    queryKey: ["nb-native-roster", className, schoolYear],
+    queryFn: () => base44.entities.Student.filter({ class_name: className, school_year: schoolYear }, "-updated_date", 500),
     select: dedupRoster,
   });
 }
 
-function Workspace({ assignment, className, variant, schoolYear, embedded, initialPage = 1 }) {
+function Workspace({ assignment, className, variant, schoolYear, embedded, initialPage = 1, dashboard = true, targetStudents }) {
   const { asset, setAsset, loading: assetLoading, error: assetError } = useNativeAsset(assignment, variant);
   const scope = useMemo(() => ({ className, assignmentId: assignment.id, schoolYear, variant }), [className, assignment.id, variant, schoolYear]);
   const live = useNativeLive(scope, "teacher");
-  const roster = useRoster(className);
-  const seats = useMemo(() => roster.data || [], [roster.data]);
+  const roster = useRoster(className, schoolYear);
+  const seats = useMemo(() => (roster.data || []).filter(s =>
+    !Array.isArray(targetStudents) || !targetStudents.length || targetStudents.map(Number).includes(Number(s.student_number))), [roster.data, targetStudents]);
   const byNumber = useMemo(() => new Map(seats.map(s => [Number(s.student_number), s])), [seats]);
   const count = assignment.pdf_page_count;
   const [page, setPage] = useState(() => Number.isInteger(initialPage) && initialPage >= 1 && initialPage <= count ? initialPage : 1);
@@ -75,7 +76,7 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
   const shownPage = running ? L.page : page;
   const liveBg = usePageBackground(asset, shownPage, variant);
   const canNative = !!bg.image;
-  const shown = running ? (L.students || []) : students;
+  const shown = running ? (L.students || []).filter(n => byNumber.has(n)) : students;
 
   const base = patch => ({ id: running ? L.id : crypto.randomUUID(), page: running ? L.page : page, follow: following, following, canWrite, students, engine: "native", variant, ...patch });
   const doControl = async (label, patch) => {
@@ -155,7 +156,7 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
       </div>
       {!whole && (roster.isLoading ? <div className="nb2-skel" style={{ height: 60 }} />
         : roster.error ? <Notice tone="bad">Roster could not load. <button type="button" className="nb2-btn" onClick={() => roster.refetch()} data-testid="button-retry-roster">Try again</button></Notice>
-        : !seats.length ? <Notice tone="warn">No students enrolled in {className} for {ACTIVE_SCHOOL_YEAR}.</Notice>
+        : !seats.length ? <Notice tone="warn">No students enrolled in {className} for {schoolYear}.</Notice>
         : <div className="nb2-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(92px,1fr))" }}>
           {seats.map(s => { const n = Number(s.student_number); const on = checked.includes(n); return (
             <button key={n} type="button" className="nb2-seat" aria-pressed={on} data-testid={`button-seat-${n}`}
@@ -193,13 +194,14 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
 
     <div className="nb2-card">
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>Student work · page {shownPage}</h2>
+        <h2 style={{ margin: 0 }}>{dashboard ? "Student work" : "Worksheet"} · page {shownPage}</h2>
         <span style={{ flex: 1 }} />
-        <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>Per row <input type="range" min={2} max={8} value={density} onChange={e => setDensity(Number(e.target.value))} data-testid="input-density" /> {density}</label>
+        {dashboard && <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>Per row <input type="range" min={2} max={8} value={density} onChange={e => setDensity(Number(e.target.value))} data-testid="input-density" /> {density}</label>}
       </div>
       {liveBg.loading ? <div className="nb2-skel" style={{ height: 160 }} />
         : liveBg.error ? <Notice tone="bad">Page image failed: {errText(liveBg.error)}</Notice>
         : !liveBg.image ? <Notice tone="warn">Prepare page {shownPage} images to see student work.</Notice>
+        : !dashboard ? <img src={liveBg.image.url || liveBg.image} alt={`Worksheet page ${shownPage}`} style={{ display: "block", width: "100%", maxHeight: "70vh", objectFit: "contain" }} />
         : !shown.length ? <Notice>No students selected.</Notice>
         : <div className="nb2-grid" style={{ gridTemplateColumns: `repeat(${density},minmax(0,1fr))` }}>
           {shown.map((n, i) => <NativeThumbnail key={`${n}-${shownPage}`} delay={i * 100} assignment={assignment} image={liveBg.image} variant={variant} schoolYear={schoolYear}
@@ -222,6 +224,26 @@ function Workspace({ assignment, className, variant, schoolYear, embedded, initi
       </div>}
     </div>
   </>);
+}
+
+// Render directly in the parent lesson. Base44 forbids framing its app.
+export function NotebookLessonTeacher({ step, session, stepIndex, dashboard }) {
+  const variant = step.mode === "digital_notebook3" ? 3 : 2;
+  const id = step.config?.assignmentId;
+  const query = useQuery({
+    queryKey: ["nb2-step-assignment", id],
+    queryFn: () => base44.entities.DigitalNotebookAssignment.get(id),
+    enabled: !!id,
+  });
+  if (!id) return <p role="alert" className="p-4">Select a notebook assignment for this step in Lesson Editor.</p>;
+  if (query.isLoading) return <p role="status" className="p-4">Loading notebook dashboard…</p>;
+  if (query.error || !query.data) return <p role="alert" className="p-4">The notebook dashboard could not load. <button onClick={() => query.refetch()}>Retry</button></p>;
+  return <div className="nb2"><style>{NB2_CSS}</style>
+    <Workspace key={`${session.id}:${stepIndex}:${variant}:${id}`} assignment={query.data}
+      className={session.class_name} variant={variant} schoolYear={session.school_year || ACTIVE_SCHOOL_YEAR}
+      embedded initialPage={Number(step.config?.pageStart) || 1} dashboard={dashboard}
+      targetStudents={session.target_students} />
+  </div>;
 }
 
 export default function LiveLesson2({ variant = 2 }) {

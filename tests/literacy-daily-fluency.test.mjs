@@ -50,14 +50,12 @@ test('edited lists, including intentionally empty lists, survive new book extrac
   assert.deepEqual(boardWords({ ...row, words: [] }, ['autor']), []);
   assert.deepEqual(boardWords({ ...row, words_overridden: false }, ['pata']), ['pata']);
 });
-test('range input retains drafts and daily board is navigable and shareable without a live session', async () => {
+test('range input retains drafts and retired family practice preserves old links', async () => {
   const range = await readFile(new URL('../src/components/lesson/LessonRangeInput.jsx', import.meta.url), 'utf8');
   assert.match(range, /setDraft\(event.target.value\)/);
   assert.doesNotMatch(range, /parseInt\(/);
   const page = await readFile(new URL('../src/pages/DailyFluency.jsx', import.meta.url), 'utf8');
-  assert.match(page, /ArrowRight/);
-  assert.match(page, /FluencyGrid/);
-  assert.match(page, /Shuffle/);
-  assert.match(page, /saveWords/);
-  assert.match(page, /shareUrl/);
+  assert.match(page, /Navigate replace to=\{`\/FluencyTable/);
+  assert.match(page, /params.delete\('daily'\)/);
+  assert.doesNotMatch(page, /Familia|shareUrl|useDailyFluency/);
 });

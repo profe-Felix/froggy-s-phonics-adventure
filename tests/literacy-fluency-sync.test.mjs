@@ -78,12 +78,12 @@ test('both watch and released lesson steps mirror fluency while solo recordings 
   assert.match(table, /preset_data: next/);
 });
 
-test('daily content uses the original table page and widget, not a separate replacement chart', async () => {
+test('retired family practice redirects to the original table without a separate interface', async () => {
   const page = await source('pages/DailyFluency.jsx');
   assert.match(page, /Navigate replace to=\{`\/FluencyTable/);
-  assert.match(page, /<FluencyGrid/);
-  assert.doesNotMatch(page, /Elemento actual/);
-  assert.match(page, /setSeed\(Date.now\(\)\)/);
+  assert.doesNotMatch(page, /useDailyFluency|<FluencyGrid/);
+  const table = await source('pages/workstations/FluencyTable.jsx');
+  assert.doesNotMatch(table, /Family practice|<DailyFluency/);
   const stations = await source('pages/Workstations.jsx');
   assert.doesNotMatch(stations, /id: 'dailyfluency'/);
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { mixedFluencyCase, onlyO, fluencyArrow } from '@/lib/literacy/fluencyDisplay.mjs';
 
 // FluencyGrid — renders the shared table as rows, each with a play triangle.
 // The sweep is driven locally from the shared `sweepStartAt` timestamp so every
@@ -21,9 +22,9 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
     const pool = [];
     let s = seed;
     const content = preset.content.filter(Boolean);
-    if (!content.length) return [];
+    if (!content.length || onlyO(content)) return [];
     while (pool.length < total) pool.push(...seededShuffle(content, s++));
-    return pool.slice(0, total);
+    return pool.slice(0, total).map(mixedFluencyCase);
   }, [preset, seed]);
 
   const rows = useMemo(() => {
@@ -41,6 +42,17 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
     if (onSelectCell) onSelectCell(index);
     else setManualIndex(index);
   };
+  useEffect(() => {
+    if (!interactive) return;
+    const onKey = event => {
+      const next = fluencyArrow(event, selected, grid.length);
+      if (next == null) return;
+      event.preventDefault();
+      select(next);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [interactive, selected, grid.length, onSelectCell]);
 
   // Ref so the sweep reads the latest cols/sweep_ms without re-firing when
   // the preset object reference changes (e.g. when the Supabase presets fetch
@@ -78,6 +90,9 @@ export default function FluencyGrid({ preset, seed, activeRow = 0, sweepStartAt,
           className="border bg-white rounded-lg px-4 py-2 font-bold disabled:opacity-40"
           onClick={() => select(Math.min(grid.length - 1, selected + 1))}>Next →</button>
       </div>
+      {onlyO(preset.content) && <p role="status" className="text-center text-slate-600 p-4">
+        No table yet: only “o” has been introduced. Choose a later lesson with more letters.
+      </p>}
       {rows.map((row, r) => (
         <div key={r} className="flex items-stretch gap-2">
           <button

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { endNativeLessonStep } from '@/lib/notebook2/endLessonStep';
+import { NotebookLessonTeacher } from '@/pages/LiveLesson2';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
@@ -1314,8 +1315,7 @@ export default function LiveLesson() {
         {['digital_notebook2', 'digital_notebook3'].includes(currentStep?.mode) ? (
           <div className="w-full h-full min-h-[65vh]">
             <p className="text-xs text-indigo-100 px-3 py-2">Base44-only test controls are separate. Start or end the V2 notebook test here; the regular notebook is unchanged.</p>
-            <iframe title="Base44-only notebook teacher controls" className="w-full h-[75vh] border-0"
-              src={`/LiveLesson${currentStep.mode === 'digital_notebook3' ? 3 : 2}?${new URLSearchParams({ embedded: '1', class: session.class_name || '', assignment: currentStep.config?.assignmentId || '', page: String(currentStep.config?.pageStart || 1) })}`} />
+            <NotebookLessonTeacher step={currentStep} session={session} stepIndex={session.current_step || 0} dashboard={showDashboard} />
           </div>
         ) : currentStep?.mode === 'digital_notebook' ? (
           <>

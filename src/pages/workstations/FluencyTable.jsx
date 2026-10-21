@@ -5,8 +5,8 @@ import { FLUENCY_PRESETS } from '@/components/workstations/fluencyPresets';
 import BackButton from '@/components/ui/BackButton';
 import FluencyGrid from '@/components/workstations/FluencyGrid';
 import CurriculumFluencyBuilder from '@/components/workstations/CurriculumFluencyBuilder';
-import DailyFluency from '@/pages/DailyFluency';
 import { latestFluencyWriter } from '@/lib/literacy/fluencySync.mjs';
+import { onlyO } from '@/lib/literacy/fluencyDisplay.mjs';
 
 // Real curriculum presets live in Supabase Storage (public bucket). Fetched at
 // load; the local FLUENCY_PRESETS is the fallback if the fetch fails.
@@ -16,15 +16,13 @@ const SUPABASE_PRESETS_URL =
 const genCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 
 export default function FluencyTable() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('daily') === '1') return <DailyFluency />;
   return <FluencySessionTable />;
 }
 
 function FluencySessionTable() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
-  const [presets, setPresets] = useState(FLUENCY_PRESETS);
+  const [presets, setPresets] = useState(() => FLUENCY_PRESETS.filter(p => !onlyO(p.content)));
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState('');
@@ -65,7 +63,7 @@ function FluencySessionTable() {
       .then((r) => (r.ok ? r.json() : null))
       .then((obj) => {
         if (!obj) return;
-        const arr = Object.entries(obj).map(([id, p]) => ({ id, ...p }));
+        const arr = Object.entries(obj).map(([id, p]) => ({ id, ...p })).filter(p => !onlyO(p.content));
         if (arr.length) {
           setPresets(arr);
           if (presetParam && arr.some((p) => p.id === presetParam)) setLobbyPreset(presetParam);
@@ -136,6 +134,7 @@ function FluencySessionTable() {
     const preset_id = curriculum ? curriculum.preset_id : lobbyPreset;
     const preset_data = curriculum ? curriculum.preset_data : presets.find(p => p.id === lobbyPreset);
     if (!preset_data?.content?.length) { setSyncError(new Error('Choose a fluency preset with content.')); return; }
+    if (onlyO(preset_data.content)) { setSyncError(new Error('Choose a later lesson with more than just “o”.')); return; }
     const created = await base44.entities.FluencySession.create({
       code, preset_id, preset_data, seed: Date.now(), active_row: 0, active_cell: 0, sweep_start_at: '',
     });
@@ -156,6 +155,7 @@ function FluencySessionTable() {
     setLobbyPreset(id);
     const next = presets.find(p => p.id === id);
     if (!next?.content?.length) { setSyncError(new Error('That preset has no fluency content.')); return; }
+    if (onlyO(next.content)) return;
     updateControls({ preset_id: id, preset_data: next, active_row: 0, active_cell: 0, sweep_start_at: '' });
   };
 
@@ -181,9 +181,9 @@ function FluencySessionTable() {
           <div className="flex items-center gap-3 p-3 bg-white border-b">
             <BackButton onClick={() => window.history.back()} />
             <h1 className="font-bold text-lg">Fluency Table — New Session</h1>
-            <a href="/FluencyTable?role=teacher&daily=1" className="ml-auto text-sm font-bold text-indigo-700 underline">Daily curriculum · Family practice</a>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
+            {syncError && <p role="alert" className="text-amber-800">{syncError.message}</p>}
             <div className="flex gap-2 mb-2">
               <button
                 onClick={() => setLobbyMode('manual')}
@@ -224,7 +224,6 @@ function FluencySessionTable() {
         <div className="flex items-center gap-3 p-3 bg-white border-b">
           <BackButton onClick={() => window.history.back()} />
           <h1 className="font-bold text-lg">Join Fluency Table</h1>
-          <a href="/FluencyTable?daily=1" className="ml-auto text-sm font-bold text-indigo-700 underline">Family practice</a>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
           <input
