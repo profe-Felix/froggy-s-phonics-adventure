@@ -1,0 +1,18 @@
+{
+  "name": "AdventureMapDefinition",
+  "type": "object",
+  "properties": {
+    "map_id": { "type": "string" },
+    "revision": { "type": "string" },
+    "title": { "type": "string" },
+    "sections_data": { "type": "string", "description": "JSON array of exactly 10 section titles." },
+    "levels_data": { "type": "string", "description": "JSON array of exactly 200 ordered level definitions. Change revision for a new progression." }
+  },
+  "required": ["map_id", "revision", "sections_data", "levels_data"],
+  "rls": {
+    "create": { "user_condition": { "role": "admin" } },
+    "read": { "user_condition": { "role": "admin" } },
+    "update": { "user_condition": { "role": "admin" } },
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}

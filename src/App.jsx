@@ -91,6 +91,7 @@ import PresentationRemote from './pages/PresentationRemote';
 import NotebookLoadTest from './pages/NotebookLoadTest';
 import NotebookLoadTestStudent from './pages/NotebookLoadTestStudent';
 import AlphabetChart from './pages/AlphabetChart';
+import LearningTrailPreview from './pages/LearningTrailPreview';
 import TeacherViewRedirect from '@/components/teacher/TeacherViewRedirect';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -234,6 +235,7 @@ const AuthenticatedApp = () => {
       <Route path="/NotebookLoadTest" element={<NotebookLoadTest />} />
       <Route path="/NotebookLoadTestStudent" element={<NotebookLoadTestStudent />} />
       <Route path="/AlphabetChart" element={<AlphabetChart />} />
+      <Route path="/LearningTrailPreview" element={<LearningTrailPreview />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes></>
   );

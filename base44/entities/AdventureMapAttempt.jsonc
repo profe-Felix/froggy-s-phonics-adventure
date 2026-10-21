@@ -1,0 +1,23 @@
+{
+  "name": "AdventureMapAttempt",
+  "type": "object",
+  "properties": {
+    "student_id": { "type": "string" },
+    "class_name": { "type": "string" },
+    "school_year": { "type": "string" },
+    "map_id": { "type": "string" },
+    "map_revision": { "type": "string" },
+    "level_number": { "type": "integer" },
+    "status": { "type": "string", "enum": ["started", "completed"] },
+    "requirement_type": { "type": "string" },
+    "expires_at": { "type": "string" },
+    "completed_at": { "type": "string" }
+  },
+  "required": ["student_id", "class_name", "school_year", "map_id", "map_revision", "level_number", "status", "requirement_type", "expires_at"],
+  "rls": {
+    "create": { "user_condition": { "role": "admin" } },
+    "read": { "user_condition": { "role": "admin" } },
+    "update": { "user_condition": { "role": "admin" } },
+    "delete": { "user_condition": { "role": "admin" } }
+  }
+}
