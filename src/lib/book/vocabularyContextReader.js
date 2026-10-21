@@ -1,5 +1,6 @@
 import { prepareHtmlBookDocument } from '@/components/book/htmlBookDocument';
 import { findVocabularyOccurrences, vocabularyContextParts, contextRectangles, createContextCursor } from './vocabularyContext.mjs';
+import { htmlContextImageSurfaces, htmlContextImagePlacement } from './htmlContextImages.mjs';
 
 const abortError = () => new DOMException('Preview closed', 'AbortError');
 const timed = (promise, milliseconds, message) => {
@@ -144,11 +145,39 @@ export function createVocabularyContextReader(item, catalog, onProgress) {
           chars.push({ ch: node.textContent[i], x: rect.x, y: rect.y, w: rect.width, h: rect.height });
         }
       }
-      if (/\p{L}/u.test(chars.map(char => char.ch).join('')))
-        return { chars, width: source.width, height: source.height, html: source.html };
-      const image = page.image_url || doc.querySelector('img[src^="data:"]')?.src;
-      if (!image) throw Error('This image-only HTML page has no page image for locating text.');
-      return await imagePage(image);
+      const nativePage = { chars, width: source.width, height: source.height, html: source.html };
+      if (/\p{L}/u.test(chars.map(char => char.ch).join(''))) return nativePage;
+      // Accessibility transcripts are offscreen, not printable text positions.
+      // They can rule out an image-only page, but cannot provide highlight boxes.
+      const transcript = [...doc.querySelectorAll('.text-hidden')].map(node => node.textContent).join('\n');
+      if (transcript.trim() && !findVocabularyOccurrences(transcript, item).length) return nativePage;
+      const surfaces = htmlContextImageSurfaces(doc);
+      if (!surfaces.length) {
+        if (page.image_url) return await imagePage(page.image_url);
+        // Blank separators/front matter are valid pages, not failed occurrences.
+        // Keep looking in the following pages rather than stopping the book.
+        return nativePage;
+      }
+      const scale = Math.min(1, 1600 / Math.max(source.width, source.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(source.width * scale); canvas.height = Math.round(source.height * scale);
+      try {
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
+        context.scale(scale, scale);
+        for (const surface of surfaces) {
+          const image = await loadImage(surface.url, signal); check();
+          const placement = htmlContextImagePlacement(surface, image.naturalWidth, image.naturalHeight);
+          context.save();
+          context.beginPath(); context.rect(surface.rect.x, surface.rect.y, surface.rect.width, surface.rect.height); context.clip();
+          context.drawImage(image, placement.x, placement.y, placement.width, placement.height);
+          context.restore();
+        }
+        const located = await ocr(canvas);
+        return { ...nativePage, chars: located.map(char => char.w ? {
+          ...char, x: char.x / scale, y: char.y / scale, w: char.w / scale, h: char.h / scale,
+        } : char), notice: 'Image text was located with OCR. Check it against the printed page.' };
+      } finally { canvas.width = 0; canvas.height = 0; }
     } finally { frame.remove(); frames.delete(frame); }
   };
   const imagePage = async url => {

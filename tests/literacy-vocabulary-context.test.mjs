@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { findVocabularyOccurrences as find, vocabularyContextParts, contextRectangles, createContextCursor } from '../src/lib/book/vocabularyContext.mjs';
 import { buildVocabularyReviewItems } from '../src/lib/literacy/vocabularyReview.mjs';
+import { htmlContextImageSurfaces, htmlContextImagePlacement } from '../src/lib/book/htmlContextImages.mjs';
 
 test('word context matches entire words, case insensitively, and keeps repeated occurrences', () => {
   const text = 'El silbato, los silbatos y otro SILBATO.';
@@ -101,4 +102,46 @@ test('context UI is wired to click, navigation, original-page rendering and read
   assert.match(reader, /revokeObjectURL/);
   const dialog = await source('components/lesson/VocabularyContextDialog.jsx');
   assert.match(dialog, /h-full min-h-0 p-2 transition-opacity/);
+});
+
+test('SingleFile artwork in CSS background figures is available without an image tag', () => {
+  const embedded = 'data:image/jpeg;base64,c2F2ZWQtcGFnZQ==';
+  const node = (tagName, style, hidden = false) => ({
+    tagName, style, closest: () => hidden ? {} : null,
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 768, height: 768 }),
+  });
+  const figure = node('FIGURE', { backgroundImage: `url("${embedded}")`, backgroundSize: '100%', backgroundPosition: '0% 0%' });
+  const hidden = node('H1', { backgroundImage: `url("${embedded}")` }, true);
+  const external = node('DIV', { backgroundImage: 'url("https://untrusted.example/page.jpg")' });
+  const body = node('BODY', { backgroundImage: 'none' });
+  body.querySelectorAll = () => [figure, hidden, external];
+  const surfaces = htmlContextImageSurfaces({ body, defaultView: { getComputedStyle: el => el.style } });
+  assert.equal(surfaces.length, 1);
+  assert.equal(surfaces[0].url, embedded);
+  assert.deepEqual(htmlContextImagePlacement(surfaces[0], 1536, 1536),
+    { x: 0, y: 0, width: 768, height: 768 });
+});
+
+test('background image geometry respects offsets, cropping, and contain sizing', () => {
+  const rect = { x: 10, y: 20, width: 200, height: 100 };
+  assert.deepEqual(htmlContextImagePlacement({ rect, size: 'cover', position: '50% 50%' }, 100, 100),
+    { x: 10, y: -30, width: 200, height: 200 });
+  assert.deepEqual(htmlContextImagePlacement({ rect, fit: 'contain', position: '50% 50%' }, 100, 100),
+    { x: 60, y: 20, width: 100, height: 100 });
+  assert.deepEqual(htmlContextImagePlacement({ rect, size: '50% auto', position: '0% 0%' }, 100, 200),
+    { x: 10, y: 20, width: 100, height: 200 });
+});
+
+test('blank and nonmatching cover pages do not block later HTML occurrences', async () => {
+  const visited = [];
+  const cursor = createContextCursor({ sources: ['html-book'], getPageCount: () => 4,
+    readMatches: async (_, page) => { visited.push(page); return page === 4 ? ['construcciones'] : []; } });
+  assert.equal((await cursor.next()).value, 'construcciones');
+  assert.deepEqual(visited, [1, 2, 3, 4]);
+  assert.equal((await cursor.next()).done, true);
+  const reader = await readFile(new URL('../src/lib/book/vocabularyContextReader.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(reader, /throw Error\('This image-only HTML page has no page image/);
+  assert.match(reader, /htmlContextImageSurfaces\(doc\)/);
+  assert.match(reader, /html: source.html/);
+  assert.match(reader, /x: char.x \/ scale, y: char.y \/ scale/);
 });
