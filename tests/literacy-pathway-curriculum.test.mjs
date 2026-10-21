@@ -1,8 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { pathwayLabel, pathwayPosition, generatePathwayDays, introductionBooks,
+import { pathwayLabel, pathwayPosition, dailyLessonLabel, pathwayRangeLabel, generatePathwayDays, introductionBooks,
   decodableBookPool, indexVocabulary, sourceSignature } from '../src/lib/literacy/pathwayCurriculum.mjs';
+
+test('week tiles show compact ranges and daily cards show actual curriculum lessons without changing keys', () => {
+  for (let week = 1; week <= 36; week++) {
+    const lesson = { language: 'es', lesson_number: week };
+    const first = ((week - 1) % 4) * 5 + 1;
+    assert.equal(pathwayRangeLabel(lesson), `L${first}–${first + 4}`);
+    for (let day = 0; day < 5; day++) assert.equal(dailyLessonLabel(lesson, null, day), `Lesson ${first + day}`);
+  }
+  const lesson = { language: 'es', lesson_number: 6 };
+  assert.equal(dailyLessonLabel(lesson, { curriculum_lesson_number: 9, curriculum_lesson_end: 10 }, 0), 'Lesson 9–10');
+  assert.equal(dailyLessonLabel({ ...lesson, language: 'en' }, null, 0), 'Monday');
+  assert.equal(pathwayRangeLabel({ language: 'es', lesson_number: 37 }), '');
+  assert.equal(pathwayRangeLabel({ language: 'en', lesson_number: 6 }), '');
+  const authored = { ...lesson, daily_lessons: [{ day: 'monday', module_number: 2, curriculum_lesson_number: 7, curriculum_lesson_end: 8, steps: [{}] }] };
+  const before = JSON.stringify(authored);
+  assert.equal(pathwayRangeLabel(authored), 'L7–8');
+  assert.equal(dailyLessonLabel(authored, authored.daily_lessons[0], 0), 'Lesson 7–8');
+  assert.equal(JSON.stringify(authored), before);
+});
 
 test('67 stable numeric positions receive 36 module-week labels and 31 bonuses', () => {
   assert.equal(pathwayLabel(1), 'M1.W1');

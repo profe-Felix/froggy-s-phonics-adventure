@@ -53,6 +53,23 @@ export function lessonCoverage(lesson) {
   return parts.join(' · ');
 }
 export const positionKey = p => `M${p.moduleNumber}.L${p.lessonNumber}`;
+// Display-only labels: weekday keys remain the navigation/progress identities.
+export function dailyLessonLabel(lesson, day, dayIndex) {
+  const weekday = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][dayIndex];
+  if (lesson?.language !== 'es') return day?.label || weekday || 'Lesson';
+  const fallback = pathwayPosition(lesson.lesson_number, dayIndex);
+  const authored = Number(day?.curriculum_lesson_number);
+  const first = Number.isInteger(authored) && authored >= 1 && authored <= 20
+    ? authored : fallback?.lessonNumber || dayIndex + 1;
+  const end = Number(day?.curriculum_lesson_end);
+  return `Lesson ${first}${Number.isInteger(end) && end > first && end <= 20 ? `–${end}` : ''}`;
+}
+export function pathwayRangeLabel(lesson) {
+  if (lesson?.language !== 'es') return '';
+  const position = pathwayPosition(lesson.lesson_number, 0);
+  if (!position || ['guided', 'side_quest'].includes(lesson.assignment_type)) return '';
+  return lessonCoverage(lesson).replaceAll(`M${position.moduleNumber}.`, '').replace(/–L/g, '–');
+}
 export const hasIntroducedConsonant = position =>
   getIntroducedGraphemesThrough(position).some(g => /[bcdfghjklmnñpqrstvwxyz]/i.test(g.split('-')[0]));
 export function introductionBooks(books, position) {

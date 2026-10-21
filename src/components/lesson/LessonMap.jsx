@@ -6,6 +6,7 @@ import LessonStepper from './LessonStepper';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
 import DayCarousel from './DayCarousel';
+import { dailyLessonLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 
 const WEEKDAYS = [
   { value: 'monday', label: 'Monday' },
@@ -146,14 +147,14 @@ export default function LessonMap({
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;
   }
 
-  const dailyLessons = WEEKDAYS.map(({ value, label }) => {
+  const dailyLessons = WEEKDAYS.map(({ value, label }, dayIndex) => {
     const savedDailyLesson = (currentLesson?.daily_lessons || []).find(
       (dailyLesson) => dailyLesson.day === value
     );
 
     return {
       day: value,
-      label,
+      label: dailyLessonLabel(currentLesson, { ...savedDailyLesson, label }, dayIndex),
       active: savedDailyLesson?.active !== false,
       module_number: savedDailyLesson?.module_number || 1,
       curriculum_lesson_number:

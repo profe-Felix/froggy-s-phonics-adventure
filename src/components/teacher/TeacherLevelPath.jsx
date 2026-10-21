@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { pathwayLabel, pathwayRangeLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { fetchLessons } from '@/lib/lessonsLoader';
@@ -205,6 +205,7 @@ export default function TeacherLevelPath({ className, onOpenLesson, activeModule
                   }}
                 >
                   {lesson?.language === 'es' ? pathwayLabel(n) : n}
+                  {pathwayRangeLabel(lesson) && <small style={{ display: 'block', fontSize: Math.max(6.5, dotSize * .15), lineHeight: 1.15, fontWeight: 600 }}>{pathwayRangeLabel(lesson)}</small>}
                 </span>
               </button>
             );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
+import { pathwayLabel, dailyLessonLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { ArrowLeft, Check, Info, Play } from 'lucide-react';
 
 // Lesson preview shown when a level puck is tapped (both parent and student
@@ -413,10 +413,12 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
   const steps = lesson.steps?.length > 0
     ? lesson.steps
     : hasDailyLessons
-      ? WEEKDAYS.map(({ value, label }) => {
+      ? WEEKDAYS.map(({ value, label }, dayIndex) => {
           const dl = (lesson.daily_lessons || []).find(d => d.day === value);
           if (!dl || dl.active === false || !(dl.steps || []).length) return null;
-          return { title: label, emoji: '📅', color: 'blue', _day: value };
+          const title = dailyLessonLabel(lesson, { ...dl, label }, dayIndex);
+          return { title, emoji: '📅', color: 'blue', _day: value,
+            _lessonNumber: lesson.language === 'es' ? title.replace(/^Lesson /, '') : null };
         }).filter(Boolean)
       : [];
 
@@ -453,7 +455,9 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
         <main>
           <section className="lp-steps-wrap" aria-label="Lesson steps">
             <p className="lp-steps-label">
-              {steps.length} part{steps.length !== 1 ? 's' : ''} in this lesson
+              {hasDailyLessons && !lesson.steps?.length && lesson.language === 'es'
+                ? `${steps.length} lesson${steps.length !== 1 ? 's' : ''} in this week`
+                : `${steps.length} part${steps.length !== 1 ? 's' : ''} in this lesson`}
             </p>
             <div className="lp-steps">
               {steps.map((step, i) => {
@@ -467,7 +471,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                     onClick={() => lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay(step._day)}
                   >
                     <div className="lp-step-card" style={{ background: color }}>
-                      <span className="lp-number">{i + 1}</span>
+                      <span className="lp-number">{step._lessonNumber || i + 1}</span>
                       <StarBadge filled={isCompleted} />
                       {step.emojiImage ? (
                         <img src={step.emojiImage} alt="" className="lp-emoji" style={{ objectFit: 'contain', height: '60%', width: '60%' }} />
