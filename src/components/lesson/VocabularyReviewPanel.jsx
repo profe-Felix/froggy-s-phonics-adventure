@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useVocabularyReview from '@/hooks/useVocabularyReview';
+import useVocabularyContext from '@/hooks/useVocabularyContext';
+import VocabularyContextDialog from './VocabularyContextDialog';
+import VocabularyContextPage from './VocabularyContextPage';
 
 const PAGE_SIZE = 40;
 const STATUS_STYLE = {
@@ -70,6 +73,23 @@ export default function VocabularyReviewPanel() {
   const [actionError, setActionError] = useState('');
   const [busyKey, setBusyKey] = useState(null);
   const [confirm, setConfirm] = useState(null); // {type:'exclude', items} | {type:'strict'}
+  const [previewItem, setPreviewItem] = useState(null);
+  const initialPreview = useRef(false);
+  const context = useVocabularyContext(previewItem, r.catalog);
+  const preview = item => {
+    setPreviewItem(item);
+    const url = new URL(window.location.href);
+    if (item) url.searchParams.set('vocabulary', item.key);
+    else url.searchParams.delete('vocabulary');
+    window.history.replaceState(window.history.state, '', url);
+  };
+  useEffect(() => {
+    if (initialPreview.current || r.loading || r.error) return;
+    initialPreview.current = true;
+    const key = new URLSearchParams(window.location.search).get('vocabulary');
+    const item = [...r.words, ...r.syllables].find(entry => entry.key === key);
+    if (item) setPreviewItem(item);
+  }, [r.loading, r.error, r.words, r.syllables]);
 
   const list = kind === 'word' ? r.words : r.syllables;
   const filtered = useMemo(() => {
@@ -200,7 +220,10 @@ export default function VocabularyReviewPanel() {
       {pageItems.map(item => <li key={item.key} className="px-3 py-2" data-testid={`row-vocab-${item.key}`}>
         <div className="flex flex-wrap items-center gap-2">
           <input type="checkbox" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={`Select ${item.text}`} />
-          <span className="text-lg text-slate-900" style={kinder}>{item.text}</span>
+          <button type="button" onClick={() => preview(item)} title="Preview in the original book"
+            aria-label={`Preview ${item.kind} ${item.text} in its book`}
+            data-testid={`button-context-${item.key}`}
+            className="rounded text-lg text-slate-900 underline decoration-indigo-300 decoration-dotted underline-offset-4 hover:text-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" style={kinder}>{item.text}</button>
           {item.kind === 'word' && item.syllables?.length > 0 && <span className="text-sm text-indigo-600" style={kinder}>{item.syllables.join(' · ')}</span>}
           {item.corrected && <span className="text-[11px] text-slate-500">was <s style={kinder}>{item.original}</s></span>}
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[item.status]}`}>{item.status}{item.inherited ? ' via word' : ''}</span>
@@ -225,5 +248,8 @@ export default function VocabularyReviewPanel() {
         <button disabled={cur >= pages - 1} onClick={() => { setPage(cur + 1); setEditing(null); }} data-testid="button-next-page" className="rounded-lg border border-indigo-200 bg-white px-3 py-1 font-bold text-indigo-700 disabled:opacity-40">Next</button>
       </div>
     </div>
+    <VocabularyContextDialog item={previewItem} {...context} onClose={() => preview(null)}>
+      {context.hit && <VocabularyContextPage hit={context.hit} />}
+    </VocabularyContextDialog>
   </section>;
 }

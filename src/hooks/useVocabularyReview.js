@@ -58,7 +58,7 @@ export default function useVocabularyReview() {
   });
   const setApprovedOnly = value => run(() => write({ kind: 'settings', text: 'bank',
     status: 'approved', approved_only: value === true }));
-  return { ...lists, summary, approvedOnly, saving, progress, save, saveMany, setApprovedOnly, refresh,
+  return { ...lists, catalog: books.data || [], summary, approvedOnly, saving, progress, save, saveMany, setApprovedOnly, refresh,
     loading: reviews.isLoading || books.isLoading || index.isLoading,
     error: (!reviews.data && reviews.error) || (!books.data && books.error) || (!index.data && index.error),
     refreshError: reviews.error || books.error || index.error };

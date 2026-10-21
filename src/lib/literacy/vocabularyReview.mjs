@@ -57,7 +57,7 @@ export function buildVocabularyReviewItems(indexes, books, rows = []) {
   const decisions = reviewDecisions(rows), catalog = new Map(books.map(b => [b.id, b]));
   const words = new Map(), syllables = new Map();
   const addSource = (item, source) => {
-    if (!item.sourceBooks.some(b => b.id === source.id || (b.title === source.title && b.subject === source.subject)))
+    if (!item.sourceBooks.some(b => b.id && source.id ? b.id === source.id : (b.title === source.title && b.subject === source.subject)))
       item.sourceBooks.push(source);
   };
   for (const index of indexes) {
