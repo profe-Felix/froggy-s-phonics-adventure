@@ -6,6 +6,8 @@ import { buildFormationTimeline } from "@/lib/notebook2/formationReplay";
 import FormationControls from "./FormationControls";
 import { useNativeInk } from "@/lib/notebook2/useNativeInk";
 import { ACTIVE_SCHOOL_YEAR } from "@/lib/schoolYear";
+import { useNativeRecording } from "@/lib/notebook2/useNativeRecording";
+import NativeRecordingTools from "./NativeRecordingTools";
 
 const imgUrl = image => (typeof image === "string" ? image : image?.url) || "";
 const imgSize = image => ({ width: image?.width || 1000, height: image?.height || 1294 });
@@ -90,11 +92,15 @@ export default function NativeThumbnail({ delay = 0, ...props }) {
 export function ThumbOverlay({ open, page, image, imageUrl, variant, onClose, assignment, className, schoolYear }) {
   const ink = useStudentInk({ className, assignment, variant, number: open.number, page, schoolYear });
   const s = useScrub(ink, `${className}:${assignment.id}:${open.number}:${page}:${variant}`);
+  const rootRef = useRef(null);
+  const scope = useMemo(() => ({ className, assignmentId: assignment.id, schoolYear: schoolYear || ACTIVE_SCHOOL_YEAR,
+    channel: "ink", number: open.number, variant }), [className, assignment.id, schoolYear, open.number, variant]);
+  const voice = useNativeRecording({ scope, page, operations: ink.operations, rootRef, readOnly: true });
   useEffect(() => { const k = e => e.key === "Escape" && onClose(); window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
   return (
     <div role="dialog" aria-label={`Student ${open.number} work`} onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "hsl(200 30% 12% / .55)", display: "grid", placeItems: "center", zIndex: 50, padding: 12 }}>
-      <div className="nb2-card" onClick={e => e.stopPropagation()} style={{ width: "min(900px,100%)", maxHeight: "96dvh", overflow: "auto" }}>
+      <div ref={rootRef} className="nb2-card" onClick={e => e.stopPropagation()} style={{ width: "min(900px,100%)", maxHeight: "96dvh", overflow: "auto" }}>
         <div className="nb2-bar" style={{ padding: 0 }}>
           <span className="nb2-title">#{open.number} {open.student?.name || ""} · page {page}</span>
           <button type="button" className="nb2-btn" disabled={!s.ops.length} onClick={s.replay} data-testid="button-replay">{s.playing ? "Pause" : "Replay"}</button>
@@ -104,7 +110,10 @@ export function ThumbOverlay({ open, page, image, imageUrl, variant, onClose, as
           <button type="button" className="nb2-btn" onClick={s.live}>Live</button>
           <button type="button" className="nb2-btn" onClick={onClose} data-testid="button-close-overlay">Close</button>
         </div>
-        <NotebookCanvas workbook={open.workbook} page={page} imageUrl={imageUrl || imgUrl(image)} strokes={s.strokes} canDraw={false} />
+        <NativeRecordingTools voice={voice} rootRef={rootRef} readOnly workbook={{ ...open.workbook, page }} imageUrl={imageUrl || imgUrl(image)} />
+        <div data-native-recording-page style={{ position: "relative" }}>
+          <NotebookCanvas workbook={open.workbook} page={page} imageUrl={imageUrl || imgUrl(image)} strokes={s.strokes} canDraw={false} />
+        </div>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
           Page replay
           <input type="range" min={0} max={s.total} step={1} value={s.at} style={{ flex: 1 }} onChange={e => s.scrub(Number(e.target.value))} data-testid="input-scrub" />

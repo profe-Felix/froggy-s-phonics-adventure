@@ -6,6 +6,8 @@ import { nativeImage } from "@/lib/notebook2/assets";
 import { usePageBackground } from "@/lib/notebook2/pageBackground";
 import { ACTIVE_SCHOOL_YEAR } from "@/lib/schoolYear";
 import { Notice, Pill } from "./shared";
+import { useNativeRecording } from "@/lib/notebook2/useNativeRecording";
+import NativeRecordingTools from "./NativeRecordingTools";
 
 export default function NativeStudentSurface({ assignment, asset, className, number, variant = 2, schoolYear = ACTIVE_SCHOOL_YEAR, readOnly = false, initialPage = 1, live = null, onSaved, allowedPages = null, registerSave, onRetryAsset }) {
   const count = assignment.pdf_page_count;
@@ -21,6 +23,11 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   const scope = useMemo(() => ({ className, assignmentId: assignment.id, schoolYear, channel: "ink", number, variant }),
     [className, assignment.id, number, variant, schoolYear]);
   const ink = useNativeInk({ scope, page, role: "student" });
+  const rootRef = useRef(null), voiceRef = useRef(null);
+  const voice = useNativeRecording({ scope, page, operations: ink.operations, rootRef, readOnly,
+    enabled: !readOnly && ink.ready && (!live?.active || live.canWrite !== false),
+    finishGesture: () => finishRef.current?.() });
+  voiceRef.current = voice;
   const flushRef = useRef(ink.flush); flushRef.current = ink.flush;
   const savedRef = useRef(onSaved); savedRef.current = onSaved;
   // Host lesson steps await this before navigating away.
@@ -29,6 +36,7 @@ export default function NativeStudentSurface({ assignment, asset, className, num
     registerSave(async () => {
       let ok = true;
       try { ok = (await finishRef.current?.()) !== false; } catch { ok = false; }
+      try { ok = (await voiceRef.current?.finish()) !== false && ok; } catch { ok = false; }
       try { ok = (await flushRef.current?.()) !== false && ok; } catch { ok = false; }
       return ok;
     });
@@ -50,7 +58,7 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   const teacherPage = following && okPage(live.page) ? live.page : null;
   useEffect(() => { if (teacherPage) setTarget(teacherPage); }, [teacherPage]);
   useEffect(() => {
-    if (live?.engine === "current" || live?.ended) void finishRef.current?.();
+    if (live?.engine === "current" || live?.ended) { void finishRef.current?.(); void voiceRef.current?.finish(); }
   }, [live?.engine, live?.ended]);
 
   // Safe transition: finish gesture, try to flush, then move. Queued ops stay in device storage if flush times out.
@@ -61,6 +69,7 @@ export default function NativeStudentSurface({ assignment, asset, className, num
     (async () => {
       let finished = false;
       try { finished = (await finishRef.current?.()) !== false; } catch { /* keep failed gesture on this page */ }
+      if (finished) { try { finished = (await voiceRef.current?.finish()) !== false; } catch { finished = false; } }
       if (!finished) { if (!cancelled) setTarget(page); moving.current = false; return; }
       try { const ok = await flushRef.current?.(); if (ok) savedRef.current?.(); } catch { /* preserved locally */ }
       if (!cancelled) setPage(target);
@@ -108,13 +117,14 @@ export default function NativeStudentSurface({ assignment, asset, className, num
   };
   const a = ink.actions;
   return (
-    <div data-notebook-surface data-notebook-palette-root data-testid="surface-native-student">
+    <div ref={rootRef} {...voice.pageHandlers} data-notebook-surface data-notebook-palette-root data-testid="surface-native-student">
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "0 0 4px" }}>
         <Pill tone="v2" data-testid="text-engine">Version {variant} notebook (Base44-only · {variant === 3 ? "individual PDF page" : "images"})</Pill>
         {inSession && <Pill tone="ok" data-testid="status-live">Live lesson{following ? " · following teacher" : ""}</Pill>}
         {ended && <Pill tone="warn" data-testid="status-live-ended">Live lesson ended · your work is kept</Pill>}
         {timing && <Pill data-testid="text-timing">{timing}</Pill>}
       </div>
+      <NativeRecordingTools voice={voice} rootRef={rootRef} readOnly={readOnly} workbook={{ ...workbook, page }} imageUrl={image.url} />
       <NotebookStudentView
         workbook={workbook} page={page} imageUrl={image.url} strokes={ink.strokes} ready={ink.ready}
         controls={controls} syncState={syncState} canUndo={ink.canUndo} canRedo={ink.canRedo} canClear={ink.canClear}

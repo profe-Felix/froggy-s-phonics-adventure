@@ -1,0 +1,22 @@
+{
+  "name": "NativeNotebookRecording",
+  "type": "object",
+  "properties": {
+    "scope_key": {"type": "string"},
+    "page": {"type": "integer"},
+    "pin_id": {"type": "string"},
+    "x_pct": {"type": "number"},
+    "y_pct": {"type": "number"},
+    "audio_uri": {"type": "string"},
+    "timeline_uri": {"type": "string"},
+    "duration_ms": {"type": "number"},
+    "recording_id": {"type": "string"}
+  },
+  "required": ["scope_key", "page", "pin_id", "x_pct", "y_pct"],
+  "rls": {
+    "create": {"user_condition": {"role": "admin"}},
+    "read": {"user_condition": {"role": "admin"}},
+    "update": {"user_condition": {"role": "admin"}},
+    "delete": {"user_condition": {"role": "admin"}}
+  }
+}
