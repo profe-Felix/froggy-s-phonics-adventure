@@ -23,15 +23,17 @@ export default function AutoDfReadingStep({ config, className, studentNumber, on
   const assignment = (assignments.data || []).find(b => b.catalog_book_id === current.id && b.class_name === className) ||
     (assignments.data || []).find(b => b.catalog_book_id === current.id && b.shared_across_classes);
   const next = () => index < books.length - 1 ? setIndex(i => i + 1) : onComplete?.();
+  const bookControls = <>
+    {books.length > 1 && <span className="shrink-0 text-xs font-bold text-teal-300">{index + 1}/{books.length}</span>}
+    <button className="shrink-0 rounded-lg border border-teal-600 bg-teal-800 px-2 py-1 text-xs font-bold text-white"
+      onClick={next}>{index < books.length - 1 ? 'Siguiente libro' : 'Terminé'}</button>
+  </>;
   return <div className="flex h-full min-h-0 flex-col">
-    <div className="flex items-center justify-between gap-2 p-2 text-sm">
-      <span>{current.title} · {index + 1}/{books.length}</span>
-      <button className="rounded-lg border px-3 py-1" onClick={next}>{index < books.length - 1 ? 'Siguiente libro' : 'Terminé'}</button>
-    </div>
     {assignment ? <div className="min-h-0 flex-1"><StudentBookReader key={assignment.id}
       book={{ ...assignment, pages: current.pages?.length ? current.pages : assignment.pages }}
       className={className} studentNumber={studentNumber} onBack={onBack} onRecordingSaved={onRecordingSaved}
-      recordingPages={current.recording_pages || []} embedded={embedded} /></div> :
-      <p role="status" className="p-5">Este libro aún no está asignado a tu clase. Tu maestro puede compartirlo desde Books.</p>}
+      recordingPages={current.recording_pages || []} embedded={embedded} headerExtra={bookControls} /></div> :
+      <div className="p-5"><p role="status">Este libro aún no está asignado a tu clase. Tu maestro puede compartirlo desde Books.</p>
+        <div className="mt-3 flex items-center gap-2">{bookControls}</div></div>}
   </div>;
 }

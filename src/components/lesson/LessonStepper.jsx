@@ -27,6 +27,7 @@ export default function LessonStepper({
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
   const [viewMode, setViewMode] = useState('overview');
+  const [bookGoalContainer, setBookGoalContainer] = useState(null);
   const activitySaveRef = useRef(null);
   const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
   const leaveTaskRef = useRef(null);
@@ -287,15 +288,21 @@ export default function LessonStepper({
 
   return (
     <div className="relative h-screen flex flex-col bg-[#dae2f3]">
-      {/* Top bar: exit + step title */}
-      <div className="flex items-center justify-between px-4 py-3 z-30 shrink-0">
-        <button type="button" disabled={leaving} onClick={() => { void leaveActivity(); }} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
+      {/* Books already display their title in the reader. Share one compact
+          row between the lesson exit and its completion/recording status. */}
+      <div data-book-step-header={step?.mode === 'book_reading' ? '' : undefined}
+        className={`flex items-center justify-between z-30 shrink-0 ${step?.mode === 'book_reading' ? 'h-10 px-2 gap-2' : 'px-4 py-3'}`}>
+        <button type="button" aria-label="Back to lesson activities" disabled={leaving} onClick={() => { void leaveActivity(); }} className="w-9 h-9 shrink-0 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
           <X className="w-5 h-5" />
         </button>
-        <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
-          {step?.title || lesson?.title}
-        </div>
-        <div className="w-9" />
+        {step?.mode === 'book_reading'
+          ? <div ref={setBookGoalContainer} className="flex min-w-0 flex-1 justify-end" />
+          : <>
+            <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
+              {step?.title || lesson?.title}
+            </div>
+            <div className="w-9" />
+          </>}
       </div>
 
       {leaveError && <div role="alert" className="px-4 py-2 text-sm font-bold text-red-800 bg-red-50">
@@ -319,6 +326,7 @@ export default function LessonStepper({
           onStudentPatch={onStudentPatch}
           onBack={() => leaveActivity('path')}
           stepperMode
+          goalContainer={step?.mode === 'book_reading' ? bookGoalContainer : null}
           onNext={goNext}
           isLast={isLast}
         />

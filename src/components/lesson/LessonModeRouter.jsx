@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
@@ -46,6 +47,7 @@ export default function LessonModeRouter({
   registerActivitySave = null,
   liveSessionId = null,
   liveSession = null,
+  goalContainer = null,
 }) {
   const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
@@ -920,6 +922,18 @@ export default function LessonModeRouter({
           : '★ Play once to finish';
 
   const goalDone = done;
+  const goalBadge = step?.mode !== 'spanish_reading' ? (
+    <div title={goalText}
+      className={`${goalContainer
+        ? 'max-w-full truncate px-2 py-1 rounded-full text-[11px] font-black'
+        : 'absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg'} ${
+        goalDone ? 'bg-green-100 text-green-700'
+          : isReplayRun ? 'bg-amber-100 text-amber-700'
+          : 'bg-white/90 text-gray-700'
+      }`}>
+      {goalText}
+    </div>
+  ) : null;
 
   function renderMode() {
     if (['letter_formation','book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','digital_notebook2','digital_notebook3','missing_letter','dictation'].includes(step.mode)) {
@@ -1234,19 +1248,7 @@ export default function LessonModeRouter({
         )}
 
       {/* Goal / progress chip — hidden for spanish_reading (game has its own header). */}
-      {step?.mode !== 'spanish_reading' && (
-        <div
-          className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
-            goalDone
-              ? 'bg-green-100 text-green-700'
-              : isReplayRun
-                ? 'bg-amber-100 text-amber-700'
-                : 'bg-white/90 text-gray-700'
-          }`}
-        >
-          {goalText}
-        </div>
-      )}
+      {goalContainer && goalBadge ? createPortal(goalBadge, goalContainer) : goalBadge}
 
       {/* Completion overlay — hidden in live mode because teacher drives pacing.
           Tap anywhere to dismiss; the dot turns green and students navigate
