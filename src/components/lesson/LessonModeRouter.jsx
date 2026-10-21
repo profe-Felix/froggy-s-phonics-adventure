@@ -24,6 +24,7 @@ import WordTracingMode from '@/components/game/modes/WordTracingMode';
 
 import { buildBlendingSubstepsForWords } from '@/lib/blendingLetters';
 import LessonConfiguredActivity from '@/components/lesson/LessonConfiguredActivity';
+import { finishSoundWallStep } from '@/lib/soundWallCompletion.mjs';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -781,6 +782,18 @@ export default function LessonModeRouter({
       ]
     );
 
+  const completeSoundWall = async () => {
+    await finishSoundWallStep({
+      liveMode,
+      alreadyComplete: alreadyDone,
+      saveCompletion: () => markStepComplete(stepIndex, totalSteps),
+      advance: stepperMode && onNext
+        ? () => onNext({ completedStepIndex: stepIndex })
+        : null,
+    });
+    if (!liveMode && !stepperMode) setDone(true);
+  };
+
   // Begin a genuine fresh replay.
   const startReplay =
     useCallback(() => {
@@ -938,7 +951,7 @@ export default function LessonModeRouter({
 
   function renderMode() {
     if (['letter_formation','book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','digital_notebook2','digital_notebook3','missing_letter','dictation'].includes(step.mode)) {
-      return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId,liveSession,activityTitleContainer}} onComplete={completeStep}/>;
+      return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId,liveSession,activityTitleContainer}} onComplete={step.mode === 'soundwall' ? completeSoundWall : completeStep}/>;
     }
     switch (step.mode) {
       case 'letter_sounds':

@@ -81,7 +81,7 @@ export default function LessonStepper({
         : Promise.resolve(false);
     }
 
-    if (destination !== 'overview' && destination !== 'path') {
+    if (!['overview', 'path', 'next'].includes(destination)) {
       setLeaveError(
         'The activity destination is not valid. Keep this activity open.'
       );
@@ -140,6 +140,9 @@ export default function LessonStepper({
           throw new Error('The lesson could not leave.');
         }
         if (!sameRequest()) return false;
+      } else if (destination === 'next' && stepIdx < visibleSteps.length - 1) {
+        activitySaveRef.current = null;
+        setStepIdx(stepIdx + 1);
       } else {
         setViewMode('overview');
       }
@@ -279,11 +282,14 @@ export default function LessonStepper({
   const isLast = stepIdx >= visibleSteps.length - 1;
   // Teacher-model account (student 30) can advance without completing steps.
   const modelStudent = isTeacherModelStudent(selectedStudent?.number);
-  // When an activity completes, return to overview so the student sees the
-  // star fill in and the next card pulsate.
-  const goNext = () => {
-    if (!curDone && !modelStudent) return Promise.resolve(false);
-    return leaveActivity();
+  // Sound wall supplies its original index only after completion is saved.
+  // Don't rely on curDone from the previous render while the query updates.
+  const currentActivityKey = activityOwnerRef.current?.key;
+  const goNext = ({ completedStepIndex } = {}) => {
+    if (activityOwnerRef.current?.key !== currentActivityKey) return Promise.resolve(false);
+    const justSaved = completedStepIndex === curOriginalIndex;
+    if (!curDone && !modelStudent && !justSaved) return Promise.resolve(false);
+    return leaveActivity('next');
   };
   const step = cur?.step;
   const compactHeader = ['book_reading', 'fluency'].includes(step?.mode);

@@ -147,6 +147,9 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
   const [currentSoundIndex, setCurrentSoundIndex] = useState(0);
   const [revealedCount, setRevealedCount] = useState(1);
   const [done, setDone] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [completionError, setCompletionError] = useState('');
+  const finishingRef = useRef(false);
 
   useEffect(() => {
     setRevealedCount(1);
@@ -177,15 +180,26 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
   const currentGroup = soundGroups[currentSoundIndex];
   const currentStages = currentGroup?.stages || [];
 
-  const next = () => {
+  const next = async () => {
+    if (finishingRef.current || done) return;
     if (revealedCount < currentStages.length) {
       setRevealedCount(revealedCount + 1);
     } else if (currentSoundIndex < soundGroups.length - 1) {
       setCurrentSoundIndex(currentSoundIndex + 1);
       setRevealedCount(1);
     } else if (!done) {
-      setDone(true);
-      onComplete?.();
+      finishingRef.current = true;
+      setFinishing(true);
+      setCompletionError('');
+      try {
+        await onComplete?.();
+        setDone(true);
+      } catch {
+        setCompletionError('Could not finish this step. Tap Done to try again.');
+      } finally {
+        finishingRef.current = false;
+        setFinishing(false);
+      }
     }
   };
 
@@ -314,10 +328,11 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
       </div>
 
       {/* Navigation */}
+      {completionError && <p role="alert" className="bg-red-50 px-4 py-2 text-center text-sm font-bold text-red-800">{completionError}</p>}
       <div className="flex items-center justify-center gap-3 p-4 shrink-0 bg-white border-t border-gray-100">
         <button
           onClick={prev}
-          disabled={currentSoundIndex === 0 && revealedCount === 1}
+          disabled={finishing || (currentSoundIndex === 0 && revealedCount === 1)}
           className="px-3 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold inline-flex items-center gap-1 hover:bg-slate-200 disabled:opacity-40"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -334,7 +349,7 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
 
         <button
           onClick={next}
-          disabled={done}
+          disabled={done || finishing}
           className="px-6 py-2.5 rounded-xl bg-green-500 text-white font-bold inline-flex items-center gap-1.5 hover:bg-green-600 disabled:opacity-60"
         >
           {revealedCount < currentStages.length ? (
@@ -342,7 +357,7 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
           ) : currentSoundIndex < soundGroups.length - 1 ? (
             <>Next sound <ChevronRight className="w-5 h-5" /></>
           ) : (
-            <><Check className="w-5 h-5" /> {done ? 'Done!' : 'Done'}</>
+            <><Check className="w-5 h-5" /> {finishing ? 'Saving…' : done ? 'Done!' : 'Done'}</>
           )}
         </button>
       </div>
