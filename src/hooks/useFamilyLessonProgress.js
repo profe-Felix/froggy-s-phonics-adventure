@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { familyCompletedIndexes, saveFamilyCompletion } from '@/lib/literacy/familyActivityPlan.mjs';
+import { invokeBuilding } from './useBuildingPractice';
 
 const pendingCreates = new Map();
 // A family carousel is a view of the existing daily work, not a replacement
@@ -30,10 +31,10 @@ export function useFamilyLessonProgress(number, className, lessonId, plan = null
     }
     return pendingCreates.get(guard);
   };
-  const virtual = () => {
+  const virtual = (verifiedPlan = plan) => {
     const week = find(lessonId) || base.progress;
     if (!week) return null;
-    const completed_steps = familyCompletedIndexes(plan, records(), week);
+    const completed_steps = familyCompletedIndexes(verifiedPlan, records(), week);
     return { ...week, completed_steps, completed: plan.slots.length > 0 &&
       completed_steps.length === plan.slots.length };
   };
@@ -42,9 +43,18 @@ export function useFamilyLessonProgress(number, className, lessonId, plan = null
     progress: virtual(),
     markStepComplete: async index => {
       if (!base.progress) return null;
-      if (!await saveFamilyCompletion({ plan, index, weekId: lessonId, read: records, ensure,
+      let verifiedPlan = plan;
+      if (plan.slots[index]?.masteryKind) {
+        const status = await invokeBuilding({ action: 'catalog', lessonId, studentId: plan.studentId,
+          studentNumber: Number(number), className, schoolYear: ACTIVE_SCHOOL_YEAR });
+        if (!status.grandfather && !status.passedKinds.includes(plan.slots[index].masteryKind))
+          throw Error('Complete 20 items with at least 18 first-try answers correct before continuing.');
+        verifiedPlan = { ...plan, passedKinds: status.passedKinds, grandfather: status.grandfather };
+        qc.invalidateQueries({ queryKey: ['building-catalog'] });
+      }
+      if (!await saveFamilyCompletion({ plan: verifiedPlan, index, weekId: lessonId, read: records, ensure,
         write: async (row, data) => patch(await base44.entities.LessonProgress.update(row.id, data)) })) return null;
-      return virtual();
+      return virtual(verifiedPlan);
     },
     getActivityState: index => {
       const source = plan.slots[index]?.sources[0];

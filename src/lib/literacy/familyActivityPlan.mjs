@@ -35,7 +35,7 @@ export function familyActivitySignature(step) {
   return JSON.stringify(stable(copy));
 }
 
-export function buildFamilyActivityPlan(lesson, context = 'school') {
+export function buildFamilyActivityPlan(lesson, context = 'school', building = null) {
   const slots = [], bySignature = new Map(), days = [];
   const add = (step, ref) => {
     const key = familyActivitySignature(step);
@@ -64,11 +64,32 @@ export function buildFamilyActivityPlan(lesson, context = 'school') {
     required.forEach(index => add(lesson.steps[index],
       { lessonId: lesson.id, index, required, weekdayIndex: null }));
   }
-  return { slots, days };
+  // Flattening five days must not put Tuesday's new HFW after Monday's book.
+  // Keep preparation in source order, then the readers in their original order.
+  const books = slots.filter(slot => slot.step.mode === 'book_reading');
+  const preparation = slots.filter(slot => slot.step.mode !== 'book_reading');
+  const titles = { sight_words: 'Construye: palabras frecuentes', syllables: 'Construye: sílabas',
+    words: 'Construye: palabras', phrases: 'Construye: frases' };
+  const requiredKinds = building?.requiredKinds || [];
+  const buildingSlots = requiredKinds.map(kind => ({
+    masteryKind: kind,
+    step: { mode: 'word_builder', title: titles[kind], emoji: '', color: 'purple',
+      live_scope: 'both', access_scope: 'both', completion: { type: 'mastery', target: 20 },
+      config: { buildingKind: kind, masteryLevelId: lesson.id } },
+    sources: [{ lessonId: `${lesson.id}:building`, index: Object.keys(titles).indexOf(kind),
+      weekdayIndex: null, required: requiredKinds.map(k => Object.keys(titles).indexOf(k)) }],
+  }));
+  return { slots: [...preparation, ...buildingSlots, ...books], days, building,
+    passedKinds: building?.passedKinds || [], grandfather: building?.grandfather === true,
+    studentId: building?.studentId };
 }
 
 export function familyCompletedIndexes(plan, records, week) {
-  return plan.slots.flatMap((slot, index) => slot.sources.some(source => {
+  return plan.slots.flatMap((slot, index) => slot.masteryKind
+    ? (plan.grandfather || plan.passedKinds?.includes(slot.masteryKind) &&
+        slot.sources.some(source => records.some(row => row.lesson_id === source.lessonId &&
+          row.completed_steps?.includes(source.index))) ? [index] : [])
+    : slot.sources.some(source => {
     const row = records.filter(record => record.lesson_id === source.lessonId)
       .sort((a, b) => new Date(b.updated_date || b.created_date || 0) -
         new Date(a.updated_date || a.created_date || 0))[0];
@@ -100,7 +121,8 @@ export async function saveFamilyCompletion({ plan, index, weekId, read, ensure, 
     const completed_steps = [...new Set([...(week.completed_steps || []),
       ...plan.days.filter(day => day.required.every(i => read().some(row =>
         row.lesson_id === day.lessonId && row.completed_steps?.includes(i)))).map(day => day.weekdayIndex)])];
-    const done = plan.days.every(day => completed_steps.includes(day.weekdayIndex));
+    const done = plan.days.every(day => completed_steps.includes(day.weekdayIndex)) &&
+      plan.slots.every((slot, slotIndex) => completed.has(slotIndex));
     if (completed_steps.length !== (week.completed_steps || []).length || week.completed !== done)
       await write(week, { completed_steps, completed: done,
         current_step: Math.max(week.current_step || 0, 0, ...completed_steps) });

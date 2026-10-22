@@ -1,0 +1,26 @@
+{
+  "name": "BuildingPracticeRun",
+  "type": "object",
+  "properties": {
+    "student_id": {"type":"string"},
+    "class_name": {"type":"string"},
+    "school_year": {"type":"string"},
+    "lesson_id": {"type":"string"},
+    "kind": {"type":"string","enum":["gate","sight_words","syllables","words","phrases"]},
+    "gate_id": {"type":"string"},
+    "required_kinds_data": {"type":"string"},
+    "questions_data": {"type":"string"},
+    "catalog_hash": {"type":"string"},
+    "status": {"type":"string","enum":["enrolled","in_progress","passed","needs_practice"]},
+    "grandfathered": {"type":"boolean"},
+    "correct_first": {"type":"number"},
+    "answered_count": {"type":"number"}
+  },
+  "required": ["student_id","class_name","school_year","lesson_id","kind","status"],
+  "rls": {
+    "create":{"user_condition":{"role":"admin"}},
+    "read":{"user_condition":{"role":"admin"}},
+    "update":{"user_condition":{"role":"admin"}},
+    "delete":{"user_condition":{"role":"admin"}}
+  }
+}

@@ -113,7 +113,10 @@ export default function LessonModeRouter({
       : []
   );
 
-  const comp = step?.completion || {
+  // This builder owns a private, server-scored round. Old adaptive-builder
+  // counters must not display or complete its separate mastery requirement.
+  const ownsServerMastery = step?.mode === 'word_builder' && !!step?.config?.buildingKind;
+  const comp = ownsServerMastery ? { type: 'server_mastery', target: 20 } : step?.completion || {
     type: 'view',
     target: 1,
   };
@@ -958,7 +961,7 @@ export default function LessonModeRouter({
           : '★ Play once to finish';
 
   const goalDone = done;
-  const goalBadge = step?.mode !== 'spanish_reading' ? (
+  const goalBadge = !ownsServerMastery && step?.mode !== 'spanish_reading' ? (
     <div title={goalText}
       className={`${goalContainer
         ? 'max-w-full truncate px-2 py-1 rounded-full text-[11px] font-black'

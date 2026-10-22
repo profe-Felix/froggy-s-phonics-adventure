@@ -2,6 +2,10 @@
   "name": "Lesson",
   "type": "object",
   "properties": {
+    "building_practice_data": {
+      "type": "string",
+      "description": "JSON teacher-reviewed word/syllable overrides and image-backed phrase targets for building practice."
+    },
     "title": {
       "type": "string",
       "description": "Lesson name shown to students and teachers"

@@ -10,6 +10,7 @@ import CharacterDock from '@/components/game/CharacterDock';
 import { getCharacters } from '@/lib/characters';
 import { useClassColors } from '@/hooks/useClassColors';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
+import { useBuildingStatuses } from '@/hooks/useBuildingPractice';
 import LessonPreviewModal from './LessonPreviewModal';
 
 // Level-path homepage. A single background image is shown once (no repeat),
@@ -38,6 +39,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const teacherView = isTeacherModelStudent(studentNumber);
+  const buildingStatuses = useBuildingStatuses(studentData, studentNumber, className, !teacherView);
   const qc = useQueryClient();
   const { colorFor } = useClassColors();
   const classColor = colorFor(className);
@@ -112,10 +114,11 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     for (const p of progresses) {
       if (!p.completed) continue;
       const l = myLessons.find(l => l.id === p.lesson_id);
+      if (l?.language === 'es' && !teacherView && !buildingStatuses.data?.levels?.[l.id]?.canAdvance) continue;
       if (l?.lesson_number) s.add(l.lesson_number);
     }
     return s;
-  }, [progresses, myLessons]);
+  }, [progresses, myLessons, buildingStatuses.data, teacherView]);
 
   // Slots shown to students: the placed slots if a layout exists, else all 120.
   const studentSlots = useMemo(
@@ -246,6 +249,10 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
 
   return (
     <div className="relative h-screen overflow-y-auto bg-[#a932d5]">
+      {!teacherView && buildingStatuses.error && <div className="sticky top-0 z-50 bg-amber-50 p-3 text-center">
+        Progress could not be checked. Your earned work is kept.
+        <button className="ml-3 underline" onClick={() => buildingStatuses.refetch()}>Retry</button>
+      </div>}
       <div
         ref={wrapRef}
         onClick={onPathClick}
@@ -392,6 +399,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           lesson={previewLesson.lesson}
           familyView={isFamilyPath(previewLesson.lesson) && !teacherView}
           accessContext={accessContext}
+          studentData={studentData}
+          selectedStudent={selectedStudent}
           isCompleted={previewLesson.done}
           studentName={studentData?.name?.split(' ')[0]}
           onPlay={(day) => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l, day); }}

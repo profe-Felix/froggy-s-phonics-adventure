@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { pathwayLabel, dailyLessonLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { buildFamilyActivityPlan, familyLevelTitle } from '@/lib/literacy/familyActivityPlan.mjs';
+import { useBuildingCatalog } from '@/hooks/useBuildingPractice';
 import { ArrowLeft, Check, Info, Play } from 'lucide-react';
 
 // Lesson preview shown when a level puck is tapped (both parent and student
@@ -401,9 +402,15 @@ const STYLES = `
   }
 `;
 
-export default function LessonPreviewModal({ lesson, isCompleted, studentName, onPlay, onClose, onStartStep, familyView = false, accessContext = 'school' }) {
+export default function LessonPreviewModal({ lesson, isCompleted, studentName, onPlay, onClose, onStartStep, familyView = false, accessContext = 'school', studentData, selectedStudent }) {
   const [showInfo, setShowInfo] = useState(false);
+  const building = useBuildingCatalog(lesson?.id, studentData, selectedStudent?.number,
+    selectedStudent?.class_name, familyView);
   if (!lesson) return null;
+  if (familyView && (building.isLoading || building.error)) return <div className="lp-overlay">
+    <div className="bg-white rounded-2xl p-6"><p>{building.error?.message || 'Preparing your level…'}</p>
+      {building.error && <button onClick={() => building.refetch()}>Retry</button>}
+      <button onClick={onClose} className="ml-4">Close</button></div></div>;
 
   const num = lesson.lesson_number || 1;
   const subtitle = familyView ? 'Practice the activities in this level.' : lesson.subtitle || lesson.title || '';
@@ -411,7 +418,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
     ? `${studentName} will ${subtitle.charAt(0).toLowerCase()}${subtitle.slice(1)}`
     : subtitle;
   const hasDailyLessons = (lesson.daily_lessons || []).length > 0;
-  const steps = familyView ? buildFamilyActivityPlan(lesson, accessContext).slots.map(slot => slot.step) : lesson.steps?.length > 0
+  const steps = familyView ? buildFamilyActivityPlan(lesson, accessContext, building.data).slots.map(slot => slot.step) : lesson.steps?.length > 0
     ? lesson.steps
     : hasDailyLessons
       ? WEEKDAYS.map(({ value, label }, dayIndex) => {
@@ -492,6 +499,10 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
       )}
 
       {/* Start / Play again button */}
+      {!familyView && lesson.language === 'es' && <a className="block text-center font-bold p-3"
+        href={`/BuildingPracticeSetup?lessonId=${encodeURIComponent(lesson.id)}${studentData?.id ? `&studentId=${encodeURIComponent(studentData.id)}` : ''}`}>
+        Building practice: targets and image phrases
+      </a>}
       <button className="lp-start" type="button" onClick={() => {
         if (familyView) { onStartStep?.(steps[0], 0, lesson); return; }
         if (hasDailyLessons) {

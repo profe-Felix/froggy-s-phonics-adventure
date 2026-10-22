@@ -20,7 +20,7 @@ test('family levels keep all 67 numbers while teachers retain their original wee
   assert.match(teacher, /pathwayRangeLabel/);
 });
 
-test('activities flatten in weekday order and repeated charts collapse without mutating daily lessons', () => {
+test('preparation flattens in weekday order before books and repeated charts collapse without mutating daily lessons', () => {
   const lesson = week([
     { day: 'wednesday', steps: [fluency(3), book(2)] },
     { day: 'monday', steps: [fluency(1), book(1)] },
@@ -30,8 +30,8 @@ test('activities flatten in weekday order and repeated charts collapse without m
   const plan = buildFamilyActivityPlan(lesson);
   assert.equal(plan.slots.length, 4);
   assert.deepEqual(plan.slots[0].sources.map(s => s.lessonId), ['week:monday', 'week:tuesday']);
-  assert.deepEqual(plan.slots[1].sources.map(s => s.index), [1, 1]);
-  assert.equal(plan.slots[2].sources[0].lessonId, 'week:wednesday');
+  assert.deepEqual(plan.slots[2].sources.map(s => s.index), [1, 1]);
+  assert.equal(plan.slots[1].sources[0].lessonId, 'week:wednesday');
   assert.equal(JSON.stringify(lesson), before);
 });
 

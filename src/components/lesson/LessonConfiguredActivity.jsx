@@ -6,6 +6,7 @@ import SyllableTrainStep from '@/components/lesson/modes/SyllableTrainStep';
 import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
 import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
 import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
+import BuildingMasteryActivity from '@/components/literacy/BuildingMasteryActivity';
 import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
 import BookVocabularyStep from '@/components/lesson/modes/BookVocabularyStep';
 import LetterFormationStep from '@/components/lesson/modes/LetterFormationStep';
@@ -93,7 +94,11 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'syllable_train': return <SyllableTrainStep onComplete={onComplete}/>;
     case 'syllable_blender': return <SyllableBlenderStep onComplete={onComplete} targets={config.targets} curriculumPosition={config.curriculumPosition} curriculumPositionOverride={config.curriculumPositionOverride}/>;
     case 'activities': return <ActivitiesStep onComplete={onComplete} studentName={selectedStudent?.name||`Estudiante ${studentNumber||''}`} stepConfig={config} completion={comp} activityState={getActivityState?.(stepIndex)} onActivityState={state=>saveActivityState?.(stepIndex,state)}/>;
-    case 'word_builder': return <WordBuilderStep onComplete={onComplete} {...student} studentData={activityStudentData} onStudentPatch={onStudentPatch} {...curriculum}/>;
+    case 'word_builder': return config.buildingKind
+      ? <BuildingMasteryActivity key={`${activityStudentData?.id}:${config.masteryLevelId}:${config.buildingKind}`}
+          {...student} studentData={activityStudentData} lessonId={config.masteryLevelId}
+          kind={config.buildingKind} onComplete={onComplete} />
+      : <WordBuilderStep onComplete={onComplete} {...student} studentData={activityStudentData} onStudentPatch={onStudentPatch} {...curriculum}/>;
     case 'fluency': return liveSession?.active && stepIndex === (liveSession.current_step ?? 0)
       ? <FluencyLessonStudent step={step} stepIndex={stepIndex} liveSession={liveSession} />
       : config.bookVocabulary ? <BookVocabularyStep config={config} onComplete={onComplete} />

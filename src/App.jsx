@@ -92,6 +92,8 @@ import NotebookLoadTest from './pages/NotebookLoadTest';
 import NotebookLoadTestStudent from './pages/NotebookLoadTestStudent';
 import AlphabetChart from './pages/AlphabetChart';
 import LearningTrailPreview from './pages/LearningTrailPreview';
+import BuildingPracticeSetup from './pages/BuildingPracticeSetup';
+import BuildingPractice from './pages/BuildingPractice';
 import TeacherViewRedirect from '@/components/teacher/TeacherViewRedirect';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -236,6 +238,8 @@ const AuthenticatedApp = () => {
       <Route path="/NotebookLoadTestStudent" element={<NotebookLoadTestStudent />} />
       <Route path="/AlphabetChart" element={<AlphabetChart />} />
       <Route path="/LearningTrailPreview" element={<LearningTrailPreview />} />
+      <Route path="/BuildingPracticeSetup" element={<BuildingPracticeSetup />} />
+      <Route path="/BuildingPractice" element={<BuildingPractice />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes></>
   );

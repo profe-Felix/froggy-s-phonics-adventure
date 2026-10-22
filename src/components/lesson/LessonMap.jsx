@@ -9,6 +9,7 @@ import DayCarousel from './DayCarousel';
 import { dailyLessonLabel, pathwayLabel } from '@/lib/literacy/pathwayCurriculum.mjs';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
 import { buildFamilyActivityPlan, familyLevelTitle, isFamilyPath } from '@/lib/literacy/familyActivityPlan.mjs';
+import { useBuildingCatalog } from '@/hooks/useBuildingPractice';
 
 const WEEKDAYS = [
   { value: 'monday', label: 'Monday' },
@@ -123,8 +124,12 @@ export default function LessonMap({
 
   const currentLesson =
     myLessons[Math.min(lessonIdx, myLessons.length - 1)] || null;
-  const familyPlan = useMemo(() => isFamilyPath(currentLesson) && !isTeacherModelStudent(selectedStudent?.number)
-    ? buildFamilyActivityPlan(currentLesson, accessContext) : null, [currentLesson, accessContext, selectedStudent?.number]);
+  const familyMode = isFamilyPath(currentLesson) && !isTeacherModelStudent(selectedStudent?.number);
+  const building = useBuildingCatalog(currentLesson?.id, studentData, selectedStudent?.number,
+    selectedStudent?.class_name, familyMode);
+  const familyPlan = useMemo(() => familyMode
+    ? buildFamilyActivityPlan(currentLesson, accessContext, building.data) : null,
+    [currentLesson, accessContext, familyMode, building.data]);
 
   const {
     progress: weekProgress,
@@ -153,6 +158,11 @@ export default function LessonMap({
   }
 
   if (familyPlan) {
+    if (building.isLoading || building.error) return <div className="p-6 text-center">
+      <p>{building.error?.message || 'Preparing your level…'}</p>
+      {building.error && <button onClick={() => building.refetch()}>Retry</button>}
+      <button onClick={onBack} className="ml-4">Back</button>
+    </div>;
     return <LessonStepper
       key={`${currentLesson.id}:family:${accessContext}`}
       studentData={studentData}
